@@ -8,11 +8,11 @@ const connectDB = async () => {
     // mongodb connection string
     let config = {
       type: 'mssql',
-      server: 'tape-copy',
-      user: 'sa', password: '123',
-      database: 'FC_NAGECO',
+      server: 'nageco-server',
+      user: 'sa', password: '@Nageco2021',
+      database: 'FC_NAGECO_WEB',
       Port: 1433,
-      instancename: 'NAG',
+      //instancename: 'NAG',
       options: {
         encrypt: false,
         trustServerCertificate: true
@@ -28,6 +28,7 @@ const connectDB = async () => {
     }).then(() => {
       console.log(`sql connected : ${config.server}`);
     }).catch((err) => {
+      console.log(err);
       console.log(`sql NOT connected : ${config.server}`);
     });
 

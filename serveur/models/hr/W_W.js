@@ -1,9 +1,14 @@
 const { Sequelize, Model, DataTypes } = require("sequelize");
-const sequelize = new Sequelize('FC_NAGECO', 'sa', '123', {
-    dialect: 'mssql'
-
-
-});
+// Use the shared DB credentials from environment to match other models
+const sequelize = new Sequelize(
+    process.env.DB_NAME,
+    process.env.DB_USER,
+    process.env.DB_PASSWORD,
+    {
+        host: process.env.DB_HOST,
+        dialect: process.env.DB_DIALECT,
+    }
+);
 
 const ww = sequelize.define("WADH3_WADHIFI", {
 
@@ -23,4 +28,5 @@ const ww = sequelize.define("WADH3_WADHIFI", {
     timestamps: false,
 });
 
-module.exports = sequelize.model("WADH3_WADHIFI", ww);
+// Export the defined model directly
+module.exports = ww;

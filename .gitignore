@@ -1,0 +1,19 @@
+﻿# Root .gitignore for NAGECO project
+node_modules/
+serveur/node_modules/
+nageco/node_modules/
+# build outputs
+nageco/build/
+build/
+# environment
+*.env
+.env.local
+.env.*
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# archives
+*.rar
+.DS_Store
+.vscode/

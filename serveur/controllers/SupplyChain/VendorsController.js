@@ -20,7 +20,16 @@ exports.find = (req, res) => {
   authenticate(req, res, async () => {
     try {
       const data = await SupplierClient.findAll();
-      res.json(data.map(vendor => vendor.toJSON()));
+      // Ensure Files is always an array
+      const result = data.map(vendor => {
+        const vendorObj = vendor.toJSON();
+        // If Files is a string, split it; if already array, keep as is
+        if (vendorObj.Files && typeof vendorObj.Files === 'string') {
+          vendorObj.Files = vendorObj.Files.split(',').filter(f => f);
+        }
+        return vendorObj;
+      });
+      res.json(result);
     } catch (dbErr) {
       res.status(500).json({ message: "Error fetching records" });
     }
@@ -39,7 +48,8 @@ exports.create = (req, res) => {
       Email,
       List_currency,
       TYPE_CUS_SUPP,
-      logo
+      logo,
+      Files
     } = req.body;
 
     try {
@@ -52,7 +62,8 @@ exports.create = (req, res) => {
         Email,
         List_currency,
         TYPE_CUS_SUPP,
-        logo
+        logo,
+        Files: Array.isArray(Files) ? Files.join(',') : (Files || ''),
       });
 
       res.status(200).json({ message: "Vendor added successfully" });
@@ -78,7 +89,8 @@ exports.update = (req, res) => {
       Email,
       List_currency,
       TYPE_CUS_SUPP,
-      logo
+      logo,
+      Files
     } = req.body;
 
     if (!id) return res.status(400).json({ message: "id_supplier_client is required" });
@@ -97,7 +109,8 @@ exports.update = (req, res) => {
         Email,
         List_currency,
         TYPE_CUS_SUPP,
-        logo
+        logo,
+        Files: Array.isArray(Files) ? Files.join(',') : (Files || ''),
       });
 
       res.status(200).json({ message: "Vendor updated successfully" });
