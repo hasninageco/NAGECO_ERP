@@ -189,6 +189,13 @@ export default function TimesheetsGrid(props: TimesheetsGridProps) {
         sortable: false,
       },
       {
+        field: 'COST_CENTER_CODE',
+        headerName: 'Cost Center',
+        width: 130,
+        sortable: false,
+        renderCell: (params) => (params.row.COST_CENTER_CODE ?? params.row.COST_CENTER ?? ''),
+      },
+      {
         field: 'employeeName',
         headerName: 'Employee Name',
         width: 200,

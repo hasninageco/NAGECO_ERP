@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Safari pinned tab icon: monochrome, use currentColor. Large centered 'N' included. -->
+  <g fill="currentColor">
+    <circle cx="32" cy="32" r="32" />
+    <text x="32" y="50%" text-anchor="middle" dominant-baseline="middle" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="900">N</text>
+  </g>
+</svg>

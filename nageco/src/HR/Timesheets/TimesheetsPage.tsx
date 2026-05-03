@@ -1,6 +1,6 @@
 import * as React from 'react';
 import axios from 'axios';
-import { Box, Paper, Snackbar, Alert } from '@mui/material';
+import { Box, Paper, Snackbar, Alert, TextField } from '@mui/material';
 import { buildApiUrl } from '../../utils/api';
 import TimesheetsToolbar from './components/TimesheetsToolbar';
 import TimesheetsGrid from './components/TimesheetsGrid';
@@ -15,7 +15,11 @@ function getDefaultMonthYear() {
   return { month: now.getMonth() + 1, year: now.getFullYear() };
 }
 
-export default function TimesheetsPage() {
+type TimesheetsPageProps = {
+  attachedNumberPrefix?: string;
+};
+
+export default function TimesheetsPage({ attachedNumberPrefix = '' }: TimesheetsPageProps) {
   const def = React.useMemo(() => getDefaultMonthYear(), []);
   const [month, setMonth] = React.useState(def.month);
   const [year, setYear] = React.useState(def.year);
@@ -28,6 +32,11 @@ export default function TimesheetsPage() {
   // Find/search
   const [searchInput, setSearchInput] = React.useState('');
   const [searchApplied, setSearchApplied] = React.useState('');
+  const [tableFilters, setTableFilters] = React.useState({
+    costCenter: '',
+    employeeName: '',
+    empNo: '',
+  });
 
   // Multi-cell selection (spreadsheet-like)
   const [selectedKeys, setSelectedKeys] = React.useState<string[]>([]);
@@ -45,13 +54,22 @@ export default function TimesheetsPage() {
   const [dirty, setDirty] = React.useState<Record<number, Partial<Record<DayKey, string | null>>>>({});
 
   const daysInMonth = React.useMemo(() => getDaysInMonth(year, month), [year, month]);
+  const effectiveAttachedNumberPrefix = React.useMemo(
+    () => String(attachedNumberPrefix || '').trim(),
+    [attachedNumberPrefix],
+  );
 
   const fetchTimesheets = React.useCallback(async () => {
     const token = localStorage.getItem('token');
     setLoading(true);
     try {
+      const params: Record<string, string | number> = { month, year, employeeType };
+      if (effectiveAttachedNumberPrefix) {
+        params.attachedNumberPrefix = effectiveAttachedNumberPrefix;
+      }
+
       const res = await axios.get<TimesheetApiRow[]>(`${apiUrlJsi}/timesheets`, {
-        params: { month, year, employeeType },
+        params,
         headers: { Authorization: `Bearer ${token}` },
       });
       // Normalize day values
@@ -73,7 +91,7 @@ export default function TimesheetsPage() {
     } finally {
       setLoading(false);
     }
-  }, [employeeType, month, year]);
+  }, [effectiveAttachedNumberPrefix, employeeType, month, year]);
 
   React.useEffect(() => {
     fetchTimesheets();
@@ -83,9 +101,24 @@ export default function TimesheetsPage() {
 
   const visibleRows = React.useMemo(() => {
     const q = searchApplied.trim().toLowerCase();
-    if (!q) return rows;
+
+    const costCenterFilter = tableFilters.costCenter.trim().toLowerCase();
+    const employeeNameFilter = tableFilters.employeeName.trim().toLowerCase();
+    const empNoFilter = tableFilters.empNo.trim().toLowerCase();
+
     return rows.filter((r) => {
+      const ccText = String(r.COST_CENTER_CODE ?? r.COST_CENTER ?? '').toLowerCase();
+      const nameText = String(r.employeeName ?? r.NAME ?? r.nom ?? '').toLowerCase();
+      const empNoText = String(r.Ref_emp ?? '').toLowerCase();
+
+      if (costCenterFilter && !ccText.includes(costCenterFilter)) return false;
+      if (employeeNameFilter && !nameText.includes(employeeNameFilter)) return false;
+      if (empNoFilter && !empNoText.includes(empNoFilter)) return false;
+
+      if (!q) return true;
+
       const hay = [
+        r.COST_CENTER_CODE,
         r.COST_CENTER,
         r.Ref_emp,
         r.employeeName,
@@ -98,7 +131,7 @@ export default function TimesheetsPage() {
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, searchApplied]);
+  }, [rows, searchApplied, tableFilters.costCenter, tableFilters.employeeName, tableFilters.empNo]);
 
   const handleSave = React.useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -264,6 +297,40 @@ export default function TimesheetsPage() {
       </Paper>
 
       <Paper sx={{ p: 1.5 }} variant="outlined">
+        <Box
+          sx={{
+            display: 'grid',
+            gap: 1,
+            mb: 1,
+            pb: 1,
+            borderBottom: 1,
+            borderColor: 'divider',
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(3, minmax(0, 1fr))',
+            },
+          }}
+        >
+          <TextField
+            size="small"
+            label="Cost Center"
+            value={tableFilters.costCenter}
+            onChange={(e) => setTableFilters((prev) => ({ ...prev, costCenter: e.target.value }))}
+          />
+          <TextField
+            size="small"
+            label="Employee Name"
+            value={tableFilters.employeeName}
+            onChange={(e) => setTableFilters((prev) => ({ ...prev, employeeName: e.target.value }))}
+          />
+          <TextField
+            size="small"
+            label="Emp. No"
+            value={tableFilters.empNo}
+            onChange={(e) => setTableFilters((prev) => ({ ...prev, empNo: e.target.value }))}
+          />
+        </Box>
+
         <TimesheetsGrid
           rows={visibleRows}
           daysInMonth={daysInMonth}
@@ -274,6 +341,21 @@ export default function TimesheetsPage() {
           onSelectedKeysChange={setSelectedKeys}
           onApplyValueToSelected={applyValueToSelected}
         />
+        <Box
+          sx={{
+            mt: 1,
+            px: 0.5,
+            py: 0.5,
+            borderTop: 1,
+            borderColor: 'divider',
+            textAlign: 'right',
+            fontSize: 13,
+            color: 'text.secondary',
+          }}
+        >
+          Employee count: {visibleRows.length}
+          {visibleRows.length !== rows.length ? ` of ${rows.length}` : ''}
+        </Box>
       </Paper>
 
       {snack ? (

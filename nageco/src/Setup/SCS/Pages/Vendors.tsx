@@ -8,10 +8,9 @@ import {
   type MRT_ColumnDef,
 } from 'material-react-table';
 import {
-  ThemeProvider, createTheme,
   Box, IconButton, Tooltip, Button, Dialog,
   DialogActions, DialogContent, DialogTitle, TextField,
-  CssBaseline, Divider, Snackbar, Alert
+  Divider, Snackbar, Alert
 } from '@mui/material';
 import Autocomplete from '@mui/material/Autocomplete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -49,8 +48,6 @@ const initialVendorState: Vendor = {
   logo: '',
   Files: [],
 };
-
-const theme = createTheme();
 
 const currencyOptions = [
   { label: 'LYD' },

@@ -11,11 +11,9 @@ const RevenueChartBox = ({ cardBorder }: { cardBorder: string }) => {
   const thisYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(thisYear);
   const [yearData, setYearData] = useState<{ [year: number]: GL[] }>({});
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    setLoading(true);
     const code = 5;
     const financeUrl = buildApiUrl('/DsFinance/allR');
     Promise.all([
@@ -38,8 +36,7 @@ const RevenueChartBox = ({ cardBorder }: { cardBorder: string }) => {
       })
       .catch(() => {
         setYearData({ [selectedYear]: [], [selectedYear - 1]: [], [selectedYear - 2]: [] });
-      })
-      .finally(() => setLoading(false));
+      });
   }, [selectedYear]);
 
   // Chart always compares selected year and previous year

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { buildApiUrl } from '../../../utils/api';
 import { useNavigate } from 'react-router-dom';
@@ -8,10 +8,9 @@ import {
   type MRT_ColumnDef,
 } from 'material-react-table';
 import {
-  ThemeProvider, createTheme,
   Box, IconButton, Tooltip, Button, Dialog,
   DialogActions, DialogContent, DialogTitle, TextField,
-  CssBaseline, Divider, Checkbox, FormControlLabel
+  Divider, Checkbox, FormControlLabel
 } from '@mui/material';
 
 import EditIcon from '@mui/icons-material/Edit';
@@ -21,40 +20,38 @@ import ImportExportIcon from '@mui/icons-material/ImportExport';
 import * as XLSX from 'xlsx';
 
 // Define the type
-type Currency = {
+type CurrencyItem = {
   INt_c: number;
   name_c: string | null;
   Code_TIP: string | null;
   is_local: boolean | null;
 };
 
-const initialCurrencyState: Currency = {
+const initialCurrencyState: CurrencyItem = {
   INt_c: 0,
   name_c: '',
   Code_TIP: '',
   is_local: false,
 };
 
-const theme = createTheme();
-
 
 const Currency = () => {
-  const [data, setData] = useState<Currency[]>([]);
+  const [data, setData] = useState<CurrencyItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
-  const [editItem, setEditItem] = useState<Currency | null>(null);
+  const [editItem, setEditItem] = useState<CurrencyItem | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [errors, setErrors] = useState<any>({});
   const navigate = useNavigate();
 
   const apiUrl = buildApiUrl('/currencies');
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const token = localStorage.getItem('token');
     if (!token) return navigate("/login");
 
     try {
-      const response = await axios.get<Currency[]>(`${apiUrl}/all`, {
+      const response = await axios.get<CurrencyItem[]>(`${apiUrl}/all`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setData(response.data);
@@ -64,17 +61,17 @@ const Currency = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiUrl, navigate]);
 
   useEffect(() => {
     fetchData();
-  }, [navigate]);
+  }, [fetchData]);
 
-  const handleEdit = (row: Currency) => {
+  const handleEdit = useCallback((row: CurrencyItem) => {
     setEditItem(row);
     setIsEditMode(true);
     setOpenDialog(true);
-  };
+  }, []);
 
   const handleAddNew = () => {
     setEditItem(initialCurrencyState);
@@ -117,7 +114,7 @@ const Currency = () => {
     }
   };
 
-  const handleDelete = async (row: Currency) => {
+  const handleDelete = useCallback(async (row: CurrencyItem) => {
     if (!window.confirm(`Delete "${row.name_c}"?`)) return;
     const token = localStorage.getItem('token');
     try {
@@ -128,7 +125,7 @@ const Currency = () => {
     } catch {
       alert('Delete failed');
     }
-  };
+  }, [apiUrl, fetchData]);
 
   const handleExportExcel = () => {
     const headers = ["ID", "Name", "Code_TIP", "Is Local"];
@@ -144,7 +141,7 @@ const Currency = () => {
     XLSX.writeFile(workbook, "currency_data.xlsx");
   };
 
-  const columns = useMemo<MRT_ColumnDef<Currency>[]>(() => [
+  const columns = useMemo<MRT_ColumnDef<CurrencyItem>[]>(() => [
     { accessorKey: 'INt_c', header: 'ID', size: 80 },
     { accessorKey: 'name_c', header: 'Name', size: 200 },
     { accessorKey: 'Code_TIP', header: 'Code TIP', size: 200 },
@@ -172,7 +169,7 @@ const Currency = () => {
         </Box>
       ),
     },
-  ], []);
+  ], [handleDelete, handleEdit]);
 
   const table = useMaterialReactTable({
     columns,

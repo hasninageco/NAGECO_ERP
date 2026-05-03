@@ -8,10 +8,9 @@ import {
   type MRT_ColumnDef,
 } from 'material-react-table';
 import {
-  ThemeProvider, createTheme,
   Box, IconButton, Tooltip, Button, Dialog,
   DialogActions, DialogContent, DialogTitle, TextField,
-  CssBaseline, Divider
+  Divider
 } from '@mui/material';
 
 import EditIcon from '@mui/icons-material/Edit';
@@ -32,9 +31,6 @@ const initialM3State: M3 = {
   id_m3: 0,
   desig_m3: '',
 };
-
-// MUI theme
-const theme = createTheme();
 
 const M3Component = () => {
   const [data, setData] = useState<M3[]>([]);

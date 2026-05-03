@@ -8,10 +8,9 @@ import {
   type MRT_ColumnDef,
 } from 'material-react-table';
 import {
-  ThemeProvider, createTheme,
   Box, IconButton, Tooltip, Button, Dialog,
   DialogActions, DialogContent, DialogTitle, TextField,
-  CssBaseline, Divider
+  Divider
 } from '@mui/material';
 
 import EditIcon from '@mui/icons-material/Edit';
@@ -27,8 +26,6 @@ type Banque = {
   checkkkkkk: string;
   BankID: number | null;
 };
-
-const theme = createTheme();
 
 const initialBankState: Banque = {
   id_Banque: 0,

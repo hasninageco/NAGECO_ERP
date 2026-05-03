@@ -8,10 +8,9 @@ import {
   type MRT_ColumnDef,
 } from 'material-react-table';
 import {
-  ThemeProvider, createTheme,
   Box, IconButton, Tooltip, Button, Dialog,
   DialogActions, DialogContent, DialogTitle, TextField,
-  CssBaseline, Divider, Snackbar, Alert
+  Divider, Snackbar, Alert
 } from '@mui/material';
 import Autocomplete from '@mui/material/Autocomplete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -84,8 +83,6 @@ const initialProductState: Product = {
   tt: '',
   COST_CENTERS: [],
 };
-
-const theme = createTheme();
 
 const Products = () => {
   const [data, setData] = useState<Product[]>([]);

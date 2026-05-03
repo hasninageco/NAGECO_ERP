@@ -11,7 +11,6 @@ import {
   TextField,
   ToggleButton,
   ToggleButtonGroup,
-  Typography,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SaveIcon from '@mui/icons-material/Save';
@@ -163,8 +162,24 @@ export default function TimesheetsToolbar(props: TimesheetsToolbarProps) {
             }}
             sx={{ width: 260 }}
           />
-         
-          
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<SearchIcon />}
+            onClick={onFind}
+            disabled={loading}
+          >
+            Find
+          </Button>
+          <Button
+            size="small"
+            variant="text"
+            startIcon={<ClearIcon />}
+            onClick={onClearSearch}
+            disabled={loading || !searchText}
+          >
+            Clear
+          </Button>
         </Stack>
 
        

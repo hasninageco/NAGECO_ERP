@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, GeoJSON } from 'react-leaflet';
+import { useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Box, Button, Dialog } from '@mui/material';
@@ -69,8 +69,6 @@ const RobotWriterList = ({ lines, speed = 90, sx = {} }: { lines: string[]; spee
 // Adjust these coordinates to match your desired "red zone" area
 // Bounding box for most of Libya (covers the country, not just a region)
 // Adjusted bounding box to optimally center and show the full Libyan map
-const LIBYA_BBOX = '9.5%2C19.5%2C25.0%2C34.0'; // minLon,minLat,maxLon,maxLat
-
 // Removed colored square overlay. If you want to show Libya's real shape, use a GeoJSON for Libya's borders.
 
 
@@ -236,9 +234,7 @@ const LibyaMapBox = () => {
   const [detailsData, setDetailsData] = useState<any[]>([]);
   const [detailsCrew, setDetailsCrew] = useState<string>('');
   const [detailsLoading, setDetailsLoading] = useState(false);
-  const detailsAnchorRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
   const apiUrl = buildApiUrl('/DsFinance');
   // Fetch COA accounts (Acc_No length < 10), no calculation here
   const fetchDatacoa = async () => {
@@ -300,26 +296,24 @@ const LibyaMapBox = () => {
     const minSize = 48;
     const maxSize = 140;
     const size = Math.round(minSize + (maxSize - minSize) * percentage);
-    // Use a unique id for each crew button
-    const btnId = `show-details-btn-${crewName?.replace(/\s/g, '') || ''}`;
     // Dynamic color for infoBox text: white for dark map, black for others
     const infoBoxTextColor = mapType === 'dark' ? '#fff' : '#fff';
-    let infoBox = `<div style=\"margin-top:-10px;color:${infoBoxTextColor};font-weight:700;font-size:12px;text-align:left;line-height:1;width:${Math.max(crewName ? crewName.length * 11 : 120, 160)}px;max-width:320px;word-break:break-word;background:#9c27b0;border-radius:12px;padding:5px 7px;box-shadow:0 2px 8px rgba(30,64,175,0.08);border:1px solid #90caf9;\">${crewName ? crewName + '</br> Expenses % :' + percentLabel : percentLabel}
+    let infoBox = `<div style="margin-top:-10px;color:${infoBoxTextColor};font-weight:700;font-size:12px;text-align:left;line-height:1;width:${Math.max(crewName ? crewName.length * 11 : 120, 160)}px;max-width:320px;word-break:break-word;background:#9c27b0;border-radius:12px;padding:5px 7px;box-shadow:0 2px 8px rgba(30,64,175,0.08);border:1px solid #90caf9;">${crewName ? crewName + '</br> Expenses % :' + percentLabel : percentLabel}
          </div>`;
     let markerHtml;
     if (crewName === 'Crew 101' || crewName === 'Crew 203') {
       markerHtml = `
         ${infoBox}
-        <div style=\"width:${size}px;height:${size + 20}px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;\">
-          <div style=\"width:${size}px;height:${size}px;border-radius:50%;background:rgba(255,0,0,0.4);border:2px solid #ff0000;animation:pulse 1.2s infinite;display:flex;align-items:center;justify-content:center;position:relative;\">
+        <div style="width:${size}px;height:${size + 20}px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;">
+          <div style="width:${size}px;height:${size}px;border-radius:50%;background:rgba(255,0,0,0.4);border:2px solid #ff0000;animation:pulse 1.2s infinite;display:flex;align-items:center;justify-content:center;position:relative;">
             <span style='color:#fff;font-weight:bold;font-size:${Math.round(size / 3)}px;'>📍</span>
           </div>
         </div>
       `;
     } else if (crewName === 'Crew 206') {
       markerHtml = `
-        <div style=\"width:${size}px;height:${size + 20}px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;\">
-          <div style=\"width:${size}px;height:${size}px;border-radius:50%;background:rgba(255,0,0,0.4);border:2px solid #ff0000;animation:pulse 1.2s infinite;display:flex;align-items:center;justify-content:center;position:relative;\">
+        <div style="width:${size}px;height:${size + 20}px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;">
+          <div style="width:${size}px;height:${size}px;border-radius:50%;background:rgba(255,0,0,0.4);border:2px solid #ff0000;animation:pulse 1.2s infinite;display:flex;align-items:center;justify-content:center;position:relative;">
             <span style='color:#fff;font-weight:bold;font-size:${Math.round(size / 3)}px;'>📍</span>
           </div>
         </div>
@@ -327,8 +321,8 @@ const LibyaMapBox = () => {
       `;
     } else {
       markerHtml = `
-        <div style=\"width:${size}px;height:${size + 20}px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;\">
-          <div style=\"width:${size}px;height:${size}px;border-radius:50%;background:rgba(255,0,0,0.4);border:2px solid #ff0000;animation:pulse 1.2s infinite;display:flex;align-items:center;justify-content:center;position:relative;\">
+        <div style="width:${size}px;height:${size + 20}px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;">
+          <div style="width:${size}px;height:${size}px;border-radius:50%;background:rgba(255,0,0,0.4);border:2px solid #ff0000;animation:pulse 1.2s infinite;display:flex;align-items:center;justify-content:center;position:relative;">
             <span style='color:#fff;font-weight:bold;font-size:${Math.round(size / 3)}px;'>📍</span>
           </div>
         </div>
@@ -365,7 +359,6 @@ const LibyaMapBox = () => {
     } catch (error) {
       console.error('Error fetching GL+COA data:', error);
     } finally {
-      setLoading(false);
     }
   };
 
@@ -410,8 +403,6 @@ const LibyaMapBox = () => {
         const total = crewTotals[idx];
         const percent = Math.abs(total) / grandTotal;
         const percentLabel = ` ${Math.round(percent * 100)}%`;
-        // Use unique button id for each marker
-        const btnId = `show-details-btn-${crew.name.replace(/\s/g, '')}`;
         return (
           <Marker key={crew.name} position={[crew.lat, crew.lon]} icon={getPulsingIcon(percent, percentLabel, crew.name)}>
             <Popup autoClose closeOnClick closeButton minWidth={260} maxWidth={340}>

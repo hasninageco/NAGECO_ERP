@@ -1,0 +1,9 @@
+export { default as FleetManagementLanding } from './FleetManagementLanding';
+export { default as VehiclesPage } from './VehiclesPage';
+export { default as MaintenancePage } from './MaintenancePage';
+export { default as TripsPage } from './TripsPage';
+export { default as InsurancePage } from './InsurancePage';
+export { default as DocumentsPage } from './DocumentsPage';
+export { default as NotificationsPage } from './NotificationsPage';
+export { default as SuppliersPage } from './SuppliersPage';
+export { default as FleetReadOnlyPage } from './FleetReadOnlyPage';

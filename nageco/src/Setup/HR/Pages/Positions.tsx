@@ -8,11 +8,10 @@ import {
   type MRT_ColumnDef,
 } from 'material-react-table';
 import {
-  ThemeProvider, createTheme,
   Box, IconButton, Tooltip, Button, Dialog,
   DialogActions, DialogContent, DialogTitle, TextField,
   FormControl, InputLabel, Select, MenuItem, FormHelperText,
-  CssBaseline, Divider
+  Divider
 } from '@mui/material';
 
 import EditIcon from '@mui/icons-material/Edit';
@@ -30,8 +29,6 @@ type Job = {
   job_categories: string;
   NBR_YEAR_FOR_JOB: number;
 };
-
-const theme = createTheme();
 
 const initialJobState: Job = {
   id_job: 0,

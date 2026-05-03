@@ -240,7 +240,7 @@ const AgePyramid: React.FC = () => {
               color="secondary"
               size="small"
               onClick={openMenu}
-              sx={{ textTransform: 'uppercase', borderRadius: 2, fontWeight: 700, px: 1.25, py: 0.5 }}
+              sx={{ textTransform: 'none', borderRadius: 2, fontWeight: 700, px: 1.25, py: 0.5 }}
             >
               {selectedInvestissement === 'ALL' ? 'ALL' : selectedInvestissement}
             </Button>
@@ -254,7 +254,7 @@ const AgePyramid: React.FC = () => {
                 selected={selectedInvestissement==='ALL'}
                 onClick={() => selectInv('ALL')}
                 sx={{
-                  textTransform: 'uppercase',
+                  textTransform: 'none',
                   '&.Mui-selected': { bgcolor: 'secondary.main', color: '#fff' },
                   '&.Mui-selected:hover': { bgcolor: 'secondary.dark' }
                 }}

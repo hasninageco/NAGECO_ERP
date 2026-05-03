@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <clipPath id="round">
+      <rect width="512" height="512" rx="64" ry="64"></rect>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#round)">
+    
+    <!-- Outer Blue Ring -->
+    <circle cx="256" cy="256" r="210" fill="none" stroke="#6EA8D6" stroke-width="56"></circle>
+
+    <!-- Inner White Ring -->
+    <circle cx="256" cy="256" r="188" fill="none" stroke="#FFFFFF" stroke-width="20"></circle>
+
+    <!-- 4 Continuous Flowing Lines -->
+    <g fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
+
+      <!-- Line 1 -->
+      <path d="M100 205
+               H190
+               C225 205 215 240 245 240
+               H410"></path>
+
+      <!-- Line 2 -->
+      <path d="M100 240
+               H180
+               C220 240 220 275 250 275
+               H410"></path>
+
+      <!-- Line 3 -->
+      <path d="M100 275
+               H170
+               C215 275 230 315 260 315
+               H410"></path>
+
+      <!-- Line 4 -->
+      <path d="M100 310
+               H160
+               C210 310 240 350 275 350
+               H410"></path>
+    </g>
+
+  </g>
+</svg>

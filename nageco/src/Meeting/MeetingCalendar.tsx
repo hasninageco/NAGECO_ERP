@@ -1,15 +1,137 @@
 import * as React from 'react';
 import Autocomplete from '@mui/material/Autocomplete';
 import Chip from '@mui/material/Chip';
-import { Box, Typography, Paper, Button, IconButton, Menu, MenuItem, Dialog, DialogTitle, DialogContent, Card, CardContent, CardActions, CircularProgress, TextField, Alert } from '@mui/material';
+import { Box, Typography, Paper, Button, IconButton, Menu, MenuItem, Dialog, DialogTitle, DialogContent, Card, CardContent, CardActions, CircularProgress, TextField, Alert, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material';
 import ArrowBackIosIcon from '@mui/icons-material/ArrowBackIos';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import { useTheme, alpha } from '@mui/material/styles';
 import axios from 'axios';
+import ExcelJS from 'exceljs';
+import { useTranslation } from 'react-i18next';
 import { buildApiUrl } from '../utils/api';
 
 const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+type MeetingCalendarSection = 'calendar' | 'reports' | 'all';
+
+interface MeetingCalendarProps {
+  section?: MeetingCalendarSection;
+}
+
+type ReportDateFilter = 'all' | 'today' | 'last_week' | 'last_month' | 'custom';
+
+const REPORT_LOGO_URL = '/nag_logo.png';
+const ARABIC_TEXT_REGEX = /[\u0600-\u06FF]/;
+const EMAIL_ADDRESS_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+
+const containsArabic = (value: string): boolean => ARABIC_TEXT_REGEX.test(value);
+
+const isEmailAddress = (value: string): boolean => EMAIL_ADDRESS_REGEX.test(String(value || '').trim());
+
+const dedupeCaseInsensitiveValues = (items: string[]): string[] => {
+  const seen = new Set<string>();
+
+  return items.reduce<string[]>((result, item) => {
+    const normalizedItem = String(item || '').trim();
+    if (!normalizedItem) {
+      return result;
+    }
+
+    const key = normalizedItem.toLowerCase();
+    if (seen.has(key)) {
+      return result;
+    }
+
+    seen.add(key);
+    result.push(normalizedItem);
+    return result;
+  }, []);
+};
+
+const collapseSingleCharEmailTokens = (items: string[]): string[] => {
+  const normalized = items
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+
+  // Recover emails accidentally split into single-character tokens (e.g. F,@,F,L,U).
+  if (
+    normalized.length > 1 &&
+    normalized.includes('@') &&
+    normalized.every((item) => item.length === 1)
+  ) {
+    return [normalized.join('')];
+  }
+
+  return normalized;
+};
+
+const parseMemberItems = (members: unknown): string[] => {
+  if (Array.isArray(members)) {
+    return collapseSingleCharEmailTokens(
+      members.map((member) => String(member).trim()).filter(Boolean)
+    );
+  }
+
+  if (typeof members === 'string') {
+    return collapseSingleCharEmailTokens(
+      members
+        .split(/\s*,\s*|\s*،\s*/)
+        .map((member) => member.trim())
+        .filter(Boolean)
+    );
+  }
+
+  return [];
+};
+
+const mergePendingFreeSoloValue = (members: unknown, pendingValue: string): string[] => {
+  const normalizedMembers = parseMemberItems(members);
+  const trimmedPendingValue = String(pendingValue || '').trim();
+
+  if (!trimmedPendingValue) {
+    return normalizedMembers;
+  }
+
+  const hasPendingValue = normalizedMembers.some(
+    (member) => member.toLowerCase() === trimmedPendingValue.toLowerCase()
+  );
+
+  if (hasPendingValue) {
+    return normalizedMembers;
+  }
+
+  return [...normalizedMembers, trimmedPendingValue];
+};
+
+const blobToDataUrl = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Failed to read image blob.'));
+    reader.readAsDataURL(blob);
+  });
+};
+
+const fetchImageAsDataUrl = async (url: string): Promise<string> => {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to load image: ${url}`);
+  }
+  const blob = await response.blob();
+  return blobToDataUrl(blob);
+};
+
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
 
 function getMonthDays(year: number, month: number) {
   const date = new Date(year, month, 1);
@@ -21,64 +143,64 @@ function getMonthDays(year: number, month: number) {
   return days;
 }
 
-const MeetingCalendar: React.FC = () => {
+const MeetingCalendar: React.FC<MeetingCalendarProps> = ({ section = 'all' }) => {
+  const showCalendar = section !== 'reports';
+  const showReports = section !== 'calendar';
+  const { i18n } = useTranslation();
+
+  const isArabicUi = React.useMemo(() => {
+    const lang = (i18n.resolvedLanguage || i18n.language || 'en').toLowerCase();
+    return lang.startsWith('ar');
+  }, [i18n.language, i18n.resolvedLanguage]);
   
   const [employees, setEmployees] = React.useState<any[]>([]);
-  // Function to send meeting data to Microsoft Teams
-  const sendToTeams = async () => {
-    // Prepare meeting data
-    const meetingData = {
-      subject: newMeeting.comment,
-      startDateTime: `${newMeeting.date_meeting}T${newMeeting.time_meeting}`,
-      endDateTime: `${newMeeting.date_meeting_end}T${newMeeting.time_meeting_end}`,
-      attendees: [
-        ...newMeeting.members_meeting.map(email => ({ email })),
-        ...newMeeting.Other_members_meeting.map(email => ({ email }))
-      ],
-      location: rooms.find(r => r.id_room === newMeeting.id_room)?.Name_room || '',
-      comment: newMeeting.comment
-    };
-    
-    try {
-      // Replace with your Microsoft Teams API endpoint and authentication
-        await axios.post('https://graph.microsoft.com/v1.0/me/events', meetingData, {
-        headers: {
-          Authorization: `Bearer YOUR_ACCESS_TOKEN`,
-          'Content-Type': 'application/json'
+  const employeeEmailByName = React.useMemo(() => {
+    const emailsByName = new Map<string, string>();
+
+    employees.forEach((employee: any) => {
+      const employeeName = String(employee?.NAME ?? '').trim();
+      const employeeEmail = String(
+        employee?.MAIL ?? employee?.mail ?? employee?.EMAIL ?? employee?.email ?? ''
+      ).trim();
+
+      if (!employeeName || !isEmailAddress(employeeEmail)) {
+        return;
+      }
+
+      const normalizedName = employeeName.toLowerCase();
+      if (!emailsByName.has(normalizedName)) {
+        emailsByName.set(normalizedName, employeeEmail);
+      }
+    });
+
+    return emailsByName;
+  }, [employees]);
+
+  const resolveSelectedMemberEmails = React.useCallback(
+    (selectedMembers: string[]) => {
+      const mappedEmails = selectedMembers.reduce<string[]>((result, member) => {
+        const normalizedMember = String(member || '').trim();
+        if (!normalizedMember) {
+          return result;
         }
-      });
-      alert('Meeting booked in Microsoft Teams!');
-    } catch (error) {
-      alert('Failed to book meeting in Teams. Please check your API credentials and data.');
-    }
-  };
-  // Function to send edited meeting data to Microsoft Teams
-  const sendEditToTeams = async () => {
-    if (!editMeeting) return;
-    const attendees = [
-      ...(Array.isArray(editMeeting.members_meeting) ? editMeeting.members_meeting : String(editMeeting.members_meeting).split(',')).filter(Boolean).map((email: string) => ({ email })),
-      ...(Array.isArray(editMeeting.Other_members_meeting) ? editMeeting.Other_members_meeting : (editMeeting.Other_members_meeting ? String(editMeeting.Other_members_meeting).split(',') : [])).filter(Boolean).map((email: string) => ({ email }))
-    ];
-    const meetingData = {
-      subject: editMeeting.comment,
-      startDateTime: `${editMeeting.date_meeting}T${editMeeting.time_meeting}`,
-      endDateTime: `${editMeeting.date_meeting_end}T${editMeeting.time_meeting_end}`,
-      attendees,
-      location: rooms.find(r => r.id_room === editMeeting.id_room)?.Name_room || '',
-      comment: editMeeting.comment
-    };
-    try {
-      await axios.post('https://graph.microsoft.com/v1.0/me/events', meetingData, {
-        headers: {
-          Authorization: `Bearer YOUR_ACCESS_TOKEN`,
-          'Content-Type': 'application/json'
+
+        if (isEmailAddress(normalizedMember)) {
+          result.push(normalizedMember);
+          return result;
         }
-      });
-      alert('Meeting booked in Microsoft Teams!');
-    } catch (error) {
-      alert('Failed to book meeting in Teams. Please check your API credentials and data.');
-    }
-  };
+
+        const employeeEmail = employeeEmailByName.get(normalizedMember.toLowerCase());
+        if (employeeEmail) {
+          result.push(employeeEmail);
+        }
+
+        return result;
+      }, []);
+
+      return dedupeCaseInsensitiveValues(mappedEmails);
+    },
+    [employeeEmailByName]
+  );
   // (removed unused helper add24Hours)
   const theme = useTheme();
   const today = new Date();
@@ -86,6 +208,11 @@ const MeetingCalendar: React.FC = () => {
   const [currentYear, setCurrentYear] = React.useState(today.getFullYear());
   const [view, setView] = React.useState<'month' | 'year' | 'day'>('month');
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [reportRoomFilter, setReportRoomFilter] = React.useState<string | null>(null);
+  const [reportMemberFilters, setReportMemberFilters] = React.useState<string[]>([]);
+  const [reportDateFilter, setReportDateFilter] = React.useState<ReportDateFilter>('all');
+  const [reportCustomDateFrom, setReportCustomDateFrom] = React.useState('');
+  const [reportCustomDateTo, setReportCustomDateTo] = React.useState('');
 
   // Room dialog state
   const [roomsDialogOpen, setRoomsDialogOpen] = React.useState(false);
@@ -104,9 +231,11 @@ const MeetingCalendar: React.FC = () => {
   const [meetings, setMeetings] = React.useState<any[]>([]);
   const [, setLoadingMeetings] = React.useState(false); // only setter is used
   const [addMeetingOpen, setAddMeetingOpen] = React.useState(false);
-  const [newMeeting, setNewMeeting] = React.useState<{ date_meeting: string; time_meeting: string; date_meeting_end: string; time_meeting_end: string; id_room: string; members_meeting: string[]; comment: string; usr: string; Other_members_meeting: string[] }>(
-    { date_meeting: '', time_meeting: '', date_meeting_end: '', time_meeting_end: '', id_room: '', members_meeting: [], comment: '', usr: '0', Other_members_meeting: [] }
+  const [newMeeting, setNewMeeting] = React.useState<{ date_meeting: string; time_meeting: string; date_meeting_end: string; time_meeting_end: string; id_room: string; members_meeting: string[]; comment: string; Notes: string; usr: string; Other_members_meeting: string[] }>(
+    { date_meeting: '', time_meeting: '', date_meeting_end: '', time_meeting_end: '', id_room: '', members_meeting: [], comment: '', Notes: '', usr: '0', Other_members_meeting: [] }
   );
+  const [newOtherMemberInput, setNewOtherMemberInput] = React.useState('');
+  const [editOtherMemberInput, setEditOtherMemberInput] = React.useState('');
   const [addMeetingLoading, setAddMeetingLoading] = React.useState(false);
   const [validation, setValidation] = React.useState({
     comment: false,
@@ -215,6 +344,323 @@ const MeetingCalendar: React.FC = () => {
   // Day view
   const selectedDay = new Date(currentYear, currentMonth, today.getDate());
 
+  const reportRows = React.useMemo(() => {
+    const locale = isArabicUi ? 'ar-EG' : undefined;
+
+    return meetings
+      .map((meeting: any) => {
+        const startDate = meeting.date_meeting ? new Date(meeting.date_meeting) : null;
+        const endDate = meeting.date_meeting_end ? new Date(meeting.date_meeting_end) : null;
+        const hasValidStartDate = Boolean(startDate && !Number.isNaN(startDate.getTime()));
+        const hasValidEndDate = Boolean(endDate && !Number.isNaN(endDate.getTime()));
+
+        const roomName =
+          rooms.find((room) => String(room.id_room) === String(meeting.id_room))?.Name_room ||
+          String(meeting.id_room || '');
+
+        const membersItems = parseMemberItems(meeting.members_meeting);
+        const otherMembersItems = parseMemberItems(meeting.Other_members_meeting);
+        const allMemberItems = [...membersItems, ...otherMembersItems];
+        const allMembers = allMemberItems.join(' | ');
+
+        return {
+          id: meeting.id_meeting ?? meeting.id ?? meeting._id ?? Math.random(),
+          title: meeting.comment || 'Untitled',
+          date: hasValidStartDate ? startDate!.toLocaleDateString(locale) : '',
+          startTime:
+            meeting.time_meeting ||
+            (hasValidStartDate
+              ? startDate!.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+              : ''),
+          endTime:
+            meeting.time_meeting_end ||
+            (hasValidEndDate
+              ? endDate!.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+              : ''),
+          room: roomName,
+          members: allMembers,
+          membersList: allMemberItems,
+          createdBy: meeting.usr || '',
+          startTimeValue: hasValidStartDate ? startDate!.getTime() : 0,
+        };
+      })
+      .sort((a, b) => b.startTimeValue - a.startTimeValue);
+  }, [isArabicUi, meetings, rooms]);
+
+  const reportTitle = isArabicUi
+    ? 'تقرير الاجتماعات والحجوزات'
+    : 'Meeting / Booking Reports';
+
+  const reportHeaders = React.useMemo(
+    () =>
+      isArabicUi
+        ? ['عنوان الاجتماع', 'التاريخ', 'البداية', 'النهاية', 'القاعة', 'الحضور', 'تم الإنشاء بواسطة']
+        : ['Meeting Title', 'Date', 'Start', 'End', 'Room', 'Members', 'Created By'],
+    [isArabicUi]
+  );
+
+  const reportRoomOptions = React.useMemo(() => {
+    const roomSet = new Set<string>();
+    reportRows.forEach((row) => {
+      const room = String(row.room || '').trim();
+      if (room) {
+        roomSet.add(room);
+      }
+    });
+    return Array.from(roomSet).sort((a, b) => a.localeCompare(b));
+  }, [reportRows]);
+
+  const reportMemberOptions = React.useMemo(() => {
+    const memberSet = new Set<string>();
+    reportRows.forEach((row) => {
+      row.membersList.forEach((member: string) => {
+        const normalizedMember = String(member || '').trim();
+        if (normalizedMember) {
+          memberSet.add(normalizedMember);
+        }
+      });
+    });
+    return Array.from(memberSet).sort((a, b) => a.localeCompare(b));
+  }, [reportRows]);
+
+  const filteredReportRows = React.useMemo(() => {
+    const normalizedMemberFilters = reportMemberFilters
+      .map((member) => String(member || '').trim().toLowerCase())
+      .filter(Boolean);
+
+    const now = new Date();
+    const nowTime = now.getTime();
+
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
+
+    const startOfLastWeek = new Date(now);
+    startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
+    startOfLastWeek.setHours(0, 0, 0, 0);
+
+    const startOfLastMonth = new Date(now);
+    startOfLastMonth.setMonth(startOfLastMonth.getMonth() - 1);
+    startOfLastMonth.setHours(0, 0, 0, 0);
+
+    const customFromTime = reportCustomDateFrom
+      ? (() => {
+        const date = new Date(reportCustomDateFrom);
+        date.setHours(0, 0, 0, 0);
+        return date.getTime();
+      })()
+      : null;
+
+    const customToTime = reportCustomDateTo
+      ? (() => {
+        const date = new Date(reportCustomDateTo);
+        date.setHours(23, 59, 59, 999);
+        return date.getTime();
+      })()
+      : null;
+
+    return reportRows.filter((row) => {
+      const matchesRoom = !reportRoomFilter || row.room === reportRoomFilter;
+
+      const normalizedRowMembers = row.membersList
+        .map((member: string) => String(member || '').trim().toLowerCase())
+        .filter(Boolean);
+
+      const matchesMembers = normalizedMemberFilters.length === 0
+        ? true
+        : normalizedMemberFilters.every((memberFilter) =>
+          normalizedRowMembers.some((member) => member.includes(memberFilter))
+        );
+
+      const rowStartTime = Number(row.startTimeValue);
+      const hasValidRowStart = Number.isFinite(rowStartTime) && rowStartTime > 0;
+
+      const matchesDate = (() => {
+        if (reportDateFilter === 'all') {
+          return true;
+        }
+
+        if (!hasValidRowStart) {
+          return false;
+        }
+
+        if (reportDateFilter === 'today') {
+          return rowStartTime >= startOfToday.getTime() && rowStartTime <= endOfToday.getTime();
+        }
+
+        if (reportDateFilter === 'last_week') {
+          return rowStartTime >= startOfLastWeek.getTime() && rowStartTime <= nowTime;
+        }
+
+        if (reportDateFilter === 'last_month') {
+          return rowStartTime >= startOfLastMonth.getTime() && rowStartTime <= nowTime;
+        }
+
+        if (reportDateFilter === 'custom') {
+          if (customFromTime === null && customToTime === null) {
+            return true;
+          }
+
+          if (customFromTime !== null && rowStartTime < customFromTime) {
+            return false;
+          }
+
+          if (customToTime !== null && rowStartTime > customToTime) {
+            return false;
+          }
+
+          return true;
+        }
+
+        return true;
+      })();
+
+      return matchesRoom && matchesMembers && matchesDate;
+    });
+  }, [reportCustomDateFrom, reportCustomDateTo, reportDateFilter, reportMemberFilters, reportRoomFilter, reportRows]);
+
+  const formatGeneratedAt = (): string => {
+    if (isArabicUi) {
+      const formatted = new Intl.DateTimeFormat('ar-EG', {
+        dateStyle: 'short',
+        timeStyle: 'medium',
+      }).format(new Date());
+      return `تاريخ الإنشاء: ${formatted}`;
+    }
+
+    return `Generated on: ${new Date().toLocaleString()}`;
+  };
+
+  const handleExportExcel = async () => {
+    if (filteredReportRows.length === 0) {
+      alert('No meeting records available to export.');
+      return;
+    }
+
+    try {
+      let logoDataUrl = '';
+      try {
+        logoDataUrl = await fetchImageAsDataUrl(REPORT_LOGO_URL);
+      } catch {
+        logoDataUrl = '';
+      }
+
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'NAGECO';
+      workbook.created = new Date();
+
+      const worksheet = workbook.addWorksheet('MeetingReports', {
+        views: [{ state: 'frozen', ySplit: 5, rightToLeft: isArabicUi }],
+      });
+
+      if (logoDataUrl) {
+        const logoImageId = workbook.addImage({
+          base64: logoDataUrl,
+          extension: 'png',
+        });
+
+        worksheet.addImage(logoImageId, {
+          tl: { col: 0, row: 0 },
+          ext: { width: 180, height: 70 },
+        });
+      }
+
+      worksheet.mergeCells('C1:G1');
+      worksheet.getCell('C1').value = reportTitle;
+      worksheet.getCell('C1').font = { size: 14, bold: true };
+      worksheet.getCell('C1').alignment = {
+        horizontal: isArabicUi ? 'right' : 'left',
+        vertical: 'middle',
+      };
+
+      worksheet.mergeCells('C2:G2');
+      worksheet.getCell('C2').value = formatGeneratedAt();
+      worksheet.getCell('C2').font = { size: 10, color: { argb: 'FF666666' } };
+      worksheet.getCell('C2').alignment = {
+        horizontal: isArabicUi ? 'right' : 'left',
+        vertical: 'middle',
+      };
+
+      const headers = reportHeaders;
+
+      const headerRow = worksheet.getRow(5);
+      headerRow.values = headers;
+      headerRow.height = 24;
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF2962FF' },
+        };
+        cell.alignment = {
+          horizontal: isArabicUi ? 'right' : 'center',
+          vertical: 'middle',
+          wrapText: true,
+        };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+          left: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+          bottom: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+          right: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+        };
+      });
+
+      filteredReportRows.forEach((row, index) => {
+        const excelRow = worksheet.getRow(6 + index);
+        const rowValues = [
+          row.title || '-',
+          row.date || '-',
+          row.startTime || '-',
+          row.endTime || '-',
+          row.room || '-',
+          (Array.isArray(row.membersList) && row.membersList.length > 0) ? row.membersList.join('\n') : (row.members || '-'),
+          row.createdBy || '-',
+        ];
+
+        excelRow.values = rowValues;
+        excelRow.height = 22;
+        excelRow.eachCell((cell, colNumber) => {
+          const cellValue = String(rowValues[colNumber - 1] || '');
+          const cellHasArabic = containsArabic(cellValue);
+          cell.alignment = {
+            horizontal: cellHasArabic ? 'right' : 'left',
+            vertical: 'top',
+            wrapText: true,
+          };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            left: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            bottom: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+            right: { style: 'thin', color: { argb: 'FFE6E6E6' } },
+          };
+        });
+      });
+
+      worksheet.columns = [
+        { width: 30 },
+        { width: 16 },
+        { width: 12 },
+        { width: 12 },
+        { width: 22 },
+        { width: 55 },
+        { width: 22 },
+      ];
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob(
+        [buffer],
+        { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
+      );
+
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      downloadBlob(blob, `meeting-reports-${dateStamp}.xlsx`);
+    } catch (error) {
+      alert('Failed to export Excel report.');
+    }
+  };
+
   const handleOpenRoomsDialog = async () => {
     setRoomsDialogOpen(true);
     setLoadingRooms(true);
@@ -290,11 +736,16 @@ const MeetingCalendar: React.FC = () => {
       id_room: '',
       members_meeting: [],
       comment: '',
+      Notes: '',
       usr: '0',
       Other_members_meeting: []
     });
+    setNewOtherMemberInput('');
   };
-  const handleCloseAddMeeting = () => setAddMeetingOpen(false);
+  const handleCloseAddMeeting = () => {
+    setAddMeetingOpen(false);
+    setNewOtherMemberInput('');
+  };
   
   // Save (update) edited meeting back to backend
   const handleSaveEditedMeeting = async () => {
@@ -313,11 +764,22 @@ const MeetingCalendar: React.FC = () => {
         fullDateTimeEnd = formatDateForSQLServer(dtEnd);
       }
 
+      const normalizedOtherMembersMeeting = mergePendingFreeSoloValue(
+        editMeeting.Other_members_meeting,
+        editOtherMemberInput
+      );
+      const resolvedMemberEmails = resolveSelectedMemberEmails(
+        parseMemberItems(editMeeting.members_meeting)
+      );
+      const serializedOtherMembersMeeting = normalizedOtherMembersMeeting.join(',');
+
       const meetingToSend: any = {
         ...editMeeting,
         date_meeting: fullDateTime || editMeeting.date_meeting,
         date_meeting_end: fullDateTimeEnd || editMeeting.date_meeting_end,
-        Other_members_meeting: Array.isArray(editMeeting.Other_members_meeting) ? editMeeting.Other_members_meeting.join(',') : editMeeting.Other_members_meeting
+        Other_members_meeting: serializedOtherMembersMeeting,
+        other_members_meeting: serializedOtherMembersMeeting,
+        members_emails: resolvedMemberEmails.join(',')
       };
       // determine current user name from localStorage or token
       const getCurrentUserName = () => {
@@ -348,6 +810,7 @@ const MeetingCalendar: React.FC = () => {
       setMeetings(prev => prev.map(m => (m.id_meeting === meetingId || m.id === meetingId || m._id === meetingId) ? updated : m));
       setEditMeetingOpen(false);
       setEditMeeting(null);
+      setEditOtherMemberInput('');
     } catch (err) {
       alert('Failed to update meeting. Check backend logs.');
     }
@@ -391,12 +854,21 @@ const MeetingCalendar: React.FC = () => {
         const dtEnd = new Date(`${newMeeting.date_meeting_end}T${newMeeting.time_meeting_end}:00`);
         fullDateTimeEnd = formatDateForSQLServer(dtEnd);
       }
+
+      const normalizedOtherMembersMeeting = mergePendingFreeSoloValue(
+        newMeeting.Other_members_meeting,
+        newOtherMemberInput
+      );
+      const resolvedMemberEmails = resolveSelectedMemberEmails(newMeeting.members_meeting);
+
       const { time_meeting, time_meeting_end, ...meetingToSend } = {
         ...newMeeting,
         date_meeting: fullDateTime,
         date_meeting_end: fullDateTimeEnd,
         creation_date: formatDateForSQLServer(new Date()),
-        Other_members_meeting: Array.isArray(newMeeting.Other_members_meeting) ? newMeeting.Other_members_meeting.join(',') : newMeeting.Other_members_meeting
+        Other_members_meeting: normalizedOtherMembersMeeting.join(','),
+        other_members_meeting: normalizedOtherMembersMeeting.join(','),
+        members_emails: resolvedMemberEmails.join(',')
       };
       // set current user on new meeting if available
       const tokenForName = localStorage.getItem('token');
@@ -410,7 +882,8 @@ const MeetingCalendar: React.FC = () => {
       if (createdBy) meetingToSend.usr = createdBy;
       await axios.post(buildApiUrl('/meetingSchedules'), meetingToSend);
       setAddMeetingOpen(false);
-      setNewMeeting({ date_meeting: '', time_meeting: '', date_meeting_end: '', time_meeting_end: '', id_room: '', members_meeting: [], comment: '', usr: '0', Other_members_meeting: [] });
+      setNewMeeting({ date_meeting: '', time_meeting: '', date_meeting_end: '', time_meeting_end: '', id_room: '', members_meeting: [], comment: '', Notes: '', usr: '0', Other_members_meeting: [] });
+      setNewOtherMemberInput('');
     } catch (err) {
       alert('Error adding meeting. Check required fields and backend logs.');
     }
@@ -424,6 +897,7 @@ const MeetingCalendar: React.FC = () => {
 
 
     <Box sx={{ width: '100%', p: 2 }}>
+      {showCalendar && (
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <IconButton onClick={handlePrev}><ArrowBackIosIcon /></IconButton>
@@ -470,8 +944,10 @@ const MeetingCalendar: React.FC = () => {
 
 
 
-      </Box>
-      <Paper sx={{ overflowX: 'auto', boxShadow: 2, minHeight: 520 }}>
+  </Box>
+  )}
+  {showCalendar && (
+  <Paper sx={{ overflowX: 'auto', boxShadow: 2, minHeight: 520 }}>
         {view === 'month' && (
           <>
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', background: '#222', color: '#fff', py: 1 }}>
@@ -499,13 +975,14 @@ const MeetingCalendar: React.FC = () => {
                                   <div><b>Room:</b> {rooms.find(r => r.id_room === meeting.id_room)?.Name_room || meeting.id_room}</div>
                                   <div><b>Members:</b>
                                     <ul style={{ margin: 0, paddingLeft: 16 }}>
-                                      {(Array.isArray(meeting.members_meeting) ? meeting.members_meeting : String(meeting.members_meeting).split(',')).map((m: string, i: number) => (
+                                      {parseMemberItems(meeting.members_meeting).map((m: string, i: number) => (
                                         <li key={i}>{m}</li>
                                       ))}
                                     </ul>
                                   </div>
                                   <div><b>Start:</b> {meeting.time_meeting || (meeting.date_meeting ? new Date(meeting.date_meeting).toISOString().slice(11, 16) : '')}</div>
                                   <div><b>End:</b> {meeting.time_meeting_end || (meeting.date_meeting_end ? new Date(meeting.date_meeting_end).toISOString().slice(11, 16) : '')}</div>
+                                  {meeting.Notes && <div><b>Notes:</b> {meeting.Notes}</div>}
 
                                   <div><b>Created by:</b> {meeting.usr}</div>
                                     <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end', justifyContent: 'flex-end', mt: 1,mb:1,mr:1 }}>
@@ -536,6 +1013,7 @@ const MeetingCalendar: React.FC = () => {
                                       time_meeting_end,
                                       usr: '0'
                                       });
+                                      setEditOtherMemberInput('');
                                       setEditMeetingOpen(true);
                                     }}>Edit</Button>
                                     </Box>
@@ -569,6 +1047,159 @@ const MeetingCalendar: React.FC = () => {
           </Box>
         )}
       </Paper>
+      )}
+
+      {showReports && (
+      <Paper sx={{ mt: 2, p: 2, boxShadow: 2 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 1,
+            flexWrap: 'wrap',
+            mb: 2,
+          }}
+        >
+          <Typography variant="h6">{reportTitle}</Typography>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Button variant="outlined" onClick={handleExportExcel} disabled={filteredReportRows.length === 0}>
+              {isArabicUi ? 'تصدير Excel' : 'Export to Excel'}
+            </Button>
+          </Box>
+        </Box>
+
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+          <TextField
+            select
+            value={reportDateFilter}
+            onChange={(event) => setReportDateFilter(event.target.value as ReportDateFilter)}
+            label={isArabicUi ? 'تصفية حسب التاريخ' : 'Filter by Date'}
+            size="small"
+            sx={{ minWidth: 200, flex: '1 1 200px' }}
+          >
+            <MenuItem value="all">{isArabicUi ? 'كل التواريخ' : 'All Dates'}</MenuItem>
+            <MenuItem value="today">{isArabicUi ? 'اليوم' : 'Today'}</MenuItem>
+            <MenuItem value="last_week">{isArabicUi ? 'آخر أسبوع' : 'Last Week'}</MenuItem>
+            <MenuItem value="last_month">{isArabicUi ? 'آخر شهر' : 'Last Month'}</MenuItem>
+            <MenuItem value="custom">{isArabicUi ? 'تاريخ مخصص' : 'Custom Date'}</MenuItem>
+          </TextField>
+          {reportDateFilter === 'custom' && (
+            <>
+              <TextField
+                type="date"
+                label={isArabicUi ? 'من تاريخ' : 'From Date'}
+                value={reportCustomDateFrom}
+                onChange={(event) => setReportCustomDateFrom(event.target.value)}
+                size="small"
+                InputLabelProps={{ shrink: true }}
+                sx={{ minWidth: 170, flex: '1 1 170px' }}
+              />
+              <TextField
+                type="date"
+                label={isArabicUi ? 'إلى تاريخ' : 'To Date'}
+                value={reportCustomDateTo}
+                onChange={(event) => setReportCustomDateTo(event.target.value)}
+                size="small"
+                InputLabelProps={{ shrink: true }}
+                sx={{ minWidth: 170, flex: '1 1 170px' }}
+              />
+            </>
+          )}
+          <Autocomplete
+            options={reportRoomOptions}
+            value={reportRoomFilter}
+            onChange={(_event, value) => setReportRoomFilter(value)}
+            sx={{ minWidth: 220, flex: '1 1 220px' }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label={isArabicUi ? 'تصفية حسب القاعة' : 'Filter by Room'}
+                size="small"
+              />
+            )}
+          />
+          <Autocomplete
+            multiple
+            freeSolo
+            options={reportMemberOptions}
+            value={reportMemberFilters}
+            onChange={(_event, value) => setReportMemberFilters(value)}
+            sx={{ minWidth: 280, flex: '2 1 280px' }}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label={isArabicUi ? 'تصفية حسب الأعضاء' : 'Filter by Members'}
+                placeholder={isArabicUi ? 'اختر أو اكتب اسما' : 'Select or type a member'}
+                size="small"
+              />
+            )}
+          />
+          <Button
+            variant="text"
+            onClick={() => {
+              setReportRoomFilter(null);
+              setReportMemberFilters([]);
+              setReportDateFilter('all');
+              setReportCustomDateFrom('');
+              setReportCustomDateTo('');
+            }}
+            disabled={
+              !reportRoomFilter &&
+              reportMemberFilters.length === 0 &&
+              reportDateFilter === 'all' &&
+              !reportCustomDateFrom &&
+              !reportCustomDateTo
+            }
+          >
+            {isArabicUi ? 'مسح التصفية' : 'Clear Filters'}
+          </Button>
+        </Box>
+
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          {isArabicUi
+            ? `عرض ${filteredReportRows.length} من ${reportRows.length}`
+            : `Showing ${filteredReportRows.length} of ${reportRows.length}`}
+        </Typography>
+
+        <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 320 }}>
+          <Table stickyHeader size="small">
+            <TableHead>
+              <TableRow>
+                {reportHeaders.map((header) => (
+                  <TableCell key={header} align={isArabicUi ? 'right' : 'left'}>
+                    {header}
+                  </TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filteredReportRows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} align="center">
+                    {reportRows.length === 0
+                      ? (isArabicUi ? 'لا توجد اجتماعات متاحة.' : 'No meetings available.')
+                      : (isArabicUi ? 'لا توجد اجتماعات مطابقة للتصفية.' : 'No meetings match the selected filters.')}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredReportRows.map((row, idx) => (
+                  <TableRow key={`${row.id}-${idx}`} hover>
+                    <TableCell>{row.title}</TableCell>
+                    <TableCell>{row.date}</TableCell>
+                    <TableCell>{row.startTime}</TableCell>
+                    <TableCell>{row.endTime}</TableCell>
+                    <TableCell>{row.room}</TableCell>
+                    <TableCell sx={{ minWidth: 260 }}>{row.members}</TableCell>
+                    <TableCell>{row.createdBy}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+      )}
 
       {/* Rooms Dialog */}
       <Dialog open={roomsDialogOpen} onClose={handleCloseRoomsDialog} maxWidth="sm" fullWidth>
@@ -665,6 +1296,7 @@ const MeetingCalendar: React.FC = () => {
         <DialogTitle>Add New Meeting</DialogTitle>
         <DialogContent>
           <TextField label="Meeting Title" name="comment" value={newMeeting.comment} onChange={e => setNewMeeting({ ...newMeeting, comment: e.target.value })} size="small" fullWidth sx={{ mb: 2, mt: 2 }} error={validation.comment} helperText={validation.comment ? 'Required' : ''} />
+          <TextField label="Notes" name="Notes" value={newMeeting.Notes} onChange={e => setNewMeeting({ ...newMeeting, Notes: e.target.value })} size="small" fullWidth multiline minRows={2} sx={{ mb: 2 }} />
           {newMeeting.comment === 'Equippment Not Completed' && (
             <Box sx={{ color: 'red', fontWeight: 'bold', mb: 2 }}>Warning: Equippment Not completed</Box>
           )}
@@ -743,6 +1375,8 @@ const MeetingCalendar: React.FC = () => {
             freeSolo
             options={[]}
             value={newMeeting.Other_members_meeting}
+            inputValue={newOtherMemberInput}
+            onInputChange={(_event, value) => setNewOtherMemberInput(value)}
             onChange={(_event, value) => setNewMeeting({ ...newMeeting, Other_members_meeting: value })}
             renderTags={(value: string[], getTagProps) =>
               value.map((option: string, index: number) => (
@@ -777,7 +1411,6 @@ const MeetingCalendar: React.FC = () => {
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
             <Button onClick={handleCloseAddMeeting} disabled={addMeetingLoading} variant="contained" sx={{ mr: 1 }}>Cancel</Button>
             <Button variant="contained" onClick={handleAddMeeting} disabled={addMeetingLoading || !newMeeting.date_meeting || !newMeeting.time_meeting || !newMeeting.time_meeting_end || !newMeeting.id_room || !newMeeting.members_meeting}>Add</Button>
-            <Button variant="contained" color="secondary" sx={{ ml: 1 }} onClick={sendToTeams} disabled={addMeetingLoading || !newMeeting.date_meeting || !newMeeting.time_meeting || !newMeeting.time_meeting_end || !newMeeting.id_room || !newMeeting.members_meeting}>Book in Teams</Button>
           </Box>
         </DialogContent>
       </Dialog>
@@ -789,6 +1422,7 @@ const MeetingCalendar: React.FC = () => {
           {editMeeting && (
             <>
               <TextField label="Meeting Title" name="comment" value={editMeeting.comment} onChange={e => setEditMeeting({ ...editMeeting, comment: e.target.value })} size="small" fullWidth sx={{ mb: 2, mt: 2 }} />
+              <TextField label="Notes" name="Notes" value={editMeeting.Notes || ''} onChange={e => setEditMeeting({ ...editMeeting, Notes: e.target.value })} size="small" fullWidth multiline minRows={2} sx={{ mb: 2 }} />
               {editMeeting.comment === 'Equippment Not Completed' && (
                 <Box sx={{ color: 'red', fontWeight: 'bold', mb: 2 }}>Warning: Equippment Not completed</Box>
               )}
@@ -822,7 +1456,7 @@ const MeetingCalendar: React.FC = () => {
                 multiple
                 freeSolo
                 options={employees.map(emp => emp.NAME)}
-                value={Array.isArray(editMeeting.members_meeting) ? editMeeting.members_meeting : String(editMeeting.members_meeting).split(',')}
+                value={parseMemberItems(editMeeting.members_meeting)}
                 onChange={(_event, value) => setEditMeeting({ ...editMeeting, members_meeting: value })}
                 renderTags={(value: string[], getTagProps) =>
                   value.map((option: string, index: number) => (
@@ -837,7 +1471,9 @@ const MeetingCalendar: React.FC = () => {
                 multiple
                 freeSolo
                 options={[]}
-                value={Array.isArray(editMeeting.Other_members_meeting) ? editMeeting.Other_members_meeting : (editMeeting.Other_members_meeting ? String(editMeeting.Other_members_meeting).split(',') : [])}
+                value={parseMemberItems(editMeeting.Other_members_meeting)}
+                inputValue={editOtherMemberInput}
+                onInputChange={(_event, value) => setEditOtherMemberInput(value)}
                 onChange={(_event, value) => setEditMeeting({ ...editMeeting, Other_members_meeting: value })}
                 renderTags={(value: string[], getTagProps) =>
                   value.map((option: string, index: number) => (
@@ -850,7 +1486,6 @@ const MeetingCalendar: React.FC = () => {
               />
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
                 <Button onClick={() => setEditMeetingOpen(false)} variant="contained" sx={{ mr: 1 }}>Cancel</Button>
-                <Button variant="contained" color="secondary" sx={{ mr: 1 }} onClick={sendEditToTeams} disabled={!editMeeting || !editMeeting.date_meeting || !editMeeting.time_meeting || !editMeeting.time_meeting_end || !editMeeting.id_room || !editMeeting.members_meeting}>Book in Teams</Button>
                 <Button variant="contained" onClick={handleSaveEditedMeeting} disabled={editLoading}>Save</Button>
               </Box>
             </>

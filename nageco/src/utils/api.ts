@@ -1,4 +1,4 @@
-const rawBase = process.env.REACT_APP_API_BASE || "http://localhost:5000";
+const rawBase = process.env.REACT_APP_API_BASE || "http://10.0.2.2:5000";
 const API_BASE = rawBase.replace(/\/$/, "");
 
 /**

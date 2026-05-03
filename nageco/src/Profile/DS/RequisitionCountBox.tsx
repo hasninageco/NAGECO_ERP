@@ -91,7 +91,7 @@ const RequisitionCountBox = ({ cardBorder }: { cardBorder: string }) => {
           </Box>
           <ButtonGroup size="small" variant="contained" color="secondary" sx={{ mt: 0.5, flexWrap: 'wrap', borderRadius: 2, alignSelf: 'center' }}>
             {(['day', 'week', 'month', 'year', 'all'] as Period[]).map((p) => (
-              <Button key={p} onClick={() => setPeriod(p)} disabled={period === p} sx={{ textTransform: 'uppercase' }}>
+              <Button key={p} onClick={() => setPeriod(p)} disabled={period === p} sx={{ textTransform: 'none' }}>
                 {p}
               </Button>
             ))}

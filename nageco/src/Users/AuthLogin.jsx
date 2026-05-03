@@ -16,6 +16,7 @@ import Stack from '@mui/material/Stack';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
 import Typography from '@mui/material/Typography';
+import Link from '@mui/material/Link';
 import Container from '@mui/material/Container';
 import Grid from '@mui/material/Grid';
 import Paper from '@mui/material/Paper';
@@ -30,6 +31,7 @@ function AuthLogin({ ...others }) {
   const history = useNavigate();
   const [checked, setChecked] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const currentYear = new Date().getFullYear();
 
   const handleClickShowPassword = () => {
     setShowPassword(!showPassword);
@@ -49,7 +51,27 @@ function AuthLogin({ ...others }) {
 
             
           localStorage.setItem('token', token);
-           localStorage.setItem('username', email);
+          localStorage.setItem('username', email);
+          if (typeof res.data.actionUser === 'string') {
+            localStorage.setItem('Action_user', res.data.actionUser);
+          }
+          if (res.data.userSN && typeof res.data.userSN === 'object') {
+            localStorage.setItem('userSN', JSON.stringify(res.data.userSN));
+          } else {
+            localStorage.removeItem('userSN');
+          }
+          const refEmp = String(
+            res.data?.userSN?.ref_emp ??
+            res.data?.userSN?.Ref_emp ??
+            res.data?.ref_emp ??
+            res.data?.Ref_emp ??
+            ''
+          ).trim();
+          if (refEmp) {
+            localStorage.setItem('ref_emp', refEmp);
+          } else {
+            localStorage.removeItem('ref_emp');
+          }
           history("/home", { state: { id: email } });
         } else {
           setis_not_found("Login failed: Token is missing!");
@@ -176,13 +198,40 @@ function AuthLogin({ ...others }) {
 
 
 
-             <Box  textAlign="center" sx={{ mt: 4 }}>
-            <Typography variant="body2" color="text.secondary">
-              This Portal was created by IT Dept.
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              ©2025 Copyright: <a style={{ color: '#1976d2' }} href="https://nageco.com/">nageco.com</a>
-            </Typography>
+          <Box
+            sx={{
+              mt: 4,
+              px: 2,
+              py: 2,
+              borderTop: 1,
+              borderColor: 'divider',
+              borderRadius: 2,
+              bgcolor: 'background.paper'
+            }}
+          >
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={1}
+              alignItems="center"
+              justifyContent="center"
+              textAlign="center"
+            >
+              <Typography variant="body2" color="text.secondary">
+                Built by IT Department
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                • © {currentYear} NAGECO
+              </Typography>
+              <Link
+                href="https://nageco.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                underline="hover"
+                sx={{ fontWeight: 600 }}
+              >
+                nageco.com
+              </Link>
+            </Stack>
           </Box>
         </Grid>
 

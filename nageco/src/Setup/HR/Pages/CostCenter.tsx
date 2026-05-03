@@ -8,10 +8,9 @@ import {
   type MRT_ColumnDef,
 } from 'material-react-table';
 import {
-  ThemeProvider, createTheme,
   Box, IconButton, Tooltip, Button, Dialog,
   DialogActions, DialogContent, DialogTitle, TextField,
-  CssBaseline, Divider
+  Divider
 } from '@mui/material';
 
 import EditIcon from '@mui/icons-material/Edit';
@@ -27,8 +26,6 @@ type Administration = {
   Branche: string;
   administration_ar: string;
 };
-
-const theme = createTheme();
 
 const initialAdminState: Administration = {
   id_administratin: 0,

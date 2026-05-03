@@ -8,10 +8,9 @@ import {
   type MRT_ColumnDef,
 } from 'material-react-table';
 import {
-  ThemeProvider, createTheme,
   Box, IconButton, Tooltip, Button, Dialog,
   DialogActions, DialogContent, DialogTitle, TextField,
-  CssBaseline, Divider, Checkbox, FormControlLabel, Autocomplete,
+  Divider, Autocomplete,
   Snackbar, Alert
 } from '@mui/material';
 
@@ -37,9 +36,6 @@ const initialSectionState: Section = {
   Account: '',
   Debit_Account: '',
 };
-
-const theme = createTheme();
-
 
 const ProductCategories = () => {
   const [data, setData] = useState<Section[]>([]);

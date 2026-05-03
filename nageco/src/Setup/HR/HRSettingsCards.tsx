@@ -13,7 +13,6 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
 import PsychologyAltIcon from '@mui/icons-material/PsychologyAlt';
 import AssignmentIcon from '@mui/icons-material/Assignment';
-import LeaderboardIcon from '@mui/icons-material/Leaderboard';
 
 import Positions from './Pages/Positions';
 import { Divider } from '@mui/material';

@@ -20,6 +20,7 @@ export type TimesheetApiRow = {
   NATIONAL_NO?: string | null;
   IN_CALL?: string | null;
   COST_CENTER?: string | null;
+  COST_CENTER_CODE?: string | null;
   Ref_emp?: string | null;
   NAME?: string | null;
   IS_FOREINGHT?: boolean | null;

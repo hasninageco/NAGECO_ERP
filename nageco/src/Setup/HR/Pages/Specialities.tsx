@@ -8,10 +8,9 @@ import {
   type MRT_ColumnDef,
 } from 'material-react-table';
 import {
-  ThemeProvider, createTheme,
   Box, IconButton, Tooltip, Button, Dialog,
   DialogActions, DialogContent, DialogTitle, TextField,
-  CssBaseline, Divider
+  Divider
 } from '@mui/material';
 
 import EditIcon from '@mui/icons-material/Edit';
@@ -32,9 +31,6 @@ const initialSpecialiteState: Specialite = {
   id_specialite: 0,
   nom_specialite: '',
 };
-
-// Default MUI theme
-const theme = createTheme();
 
 const Specialities = () => {
   const [data, setData] = useState<Specialite[]>([]);

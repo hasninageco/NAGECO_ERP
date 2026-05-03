@@ -8,10 +8,9 @@ import {
   type MRT_ColumnDef,
 } from 'material-react-table';
 import {
-  ThemeProvider, createTheme,
   Box, IconButton, Tooltip, Button, Dialog,
   DialogActions, DialogContent, DialogTitle, TextField,
-  CssBaseline, Divider
+  Divider
 } from '@mui/material';
 
 import EditIcon from '@mui/icons-material/Edit';
@@ -34,8 +33,6 @@ const initialTypeFondState: TypeFond = {
   Account_numbrer_debit: '',
   Account_numbrer_credit: '',
 };
-
-const theme = createTheme();
 
 const TypeFonds = () => {
   const [data, setData] = useState<TypeFond[]>([]);
