@@ -16,6 +16,7 @@ const wws = require("./routes/Hrroute/wWRoutes");
 const holidays = require("./routes/Hrroute/holidaysRoutes");
 
 const employees = require("./routes/Hrroute/employeesRoutes");
+const children = require("./routes/Hrroute/childrenRoutes");
 
 
 const congee = require("./routes/Hrroute/congeeRoutes");
@@ -34,14 +35,27 @@ const chashBookCheckRoutes = require("./routes/financeroute/chashBookCheckRoutes
 const sarfEtrLocRoutes = require("./routes/financeroute/sarfEtrLocRoutes");
 const sarfCashRoutes = require("./routes/financeroute/sarfCashRoutes");
 const path = require('path');
+const fs = require('fs');
 const paymentSummaryRoutes = require("./routes/financeroute/paymentSummaryRoutes");
 const jsiRoutes = require("./routes/Hrroute/jsiRoutes");
 
 const meetingScheduleRoutes = require("./routes/meetingRoute/meetingScheduleRoutes");
 const meetingRoomRoutes = require("./routes/meetingRoute/meetingRoomRoutes");
 
+// Medical Insurance (claims)
+const servicesRoutes = require("./routes/insuranceRoute/servicesRoutes");
+const providersRoutes = require("./routes/insuranceRoute/providersRoutes");
+const claimsRoutes = require("./routes/insuranceRoute/claimsRoutes");
+const claimLinesRoutes = require("./routes/insuranceRoute/claimLinesRoutes");
+const claimDocumentsRoutes = require("./routes/insuranceRoute/claimDocumentsRoutes");
+const balancesRoutes = require("./routes/insuranceRoute/balancesRoutes");
+const financeRoutes = require("./routes/insuranceRoute/financeRoutes");
+
 
 const cors = require("cors");  
+const localBuildPath = path.join(__dirname, "build");
+const workspaceBuildPath = path.join(__dirname, "..", "nageco", "build");
+const clientBuildPath = fs.existsSync(localBuildPath) ? localBuildPath : workspaceBuildPath;
 
 connect();
 app.use(cors());
@@ -49,6 +63,11 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 // If you use urlencoded, also increase its limit:
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+app.get("/api/health", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 app.use("/", router);
 app.use("/positions", prouter);
 app.use("/wws", wws);
@@ -75,14 +94,28 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/upload", uploadRoutes);
 app.use("/employees", employees);
 app.use("/Lleaves", congee);
-
-
-
+app.use("/children", children);
 
 app.use("/DsFinance", DsFinance);
 
 app.use("/meetingSchedules", meetingScheduleRoutes);
 app.use("/meetingRooms", meetingRoomRoutes);
+
+app.use("/medicalInsurance/services", servicesRoutes);
+app.use("/medicalInsurance/providers", providersRoutes);
+app.use("/medicalInsurance/claims", claimsRoutes);
+app.use("/medicalInsurance/claimLines", claimLinesRoutes);
+app.use("/medicalInsurance/claimDocuments", claimDocumentsRoutes);
+app.use("/medicalInsurance/balances", balancesRoutes);
+app.use("/medicalInsurance/finance", financeRoutes);
+
+app.use(express.static(clientBuildPath));
+
+app.get("*", (req, res, next) => {
+  if (req.method !== "GET") return next();
+  if (req.path.startsWith("/api")) return next();
+  return res.sendFile(path.join(clientBuildPath, "index.html"));
+});
 
 
 app.listen(5000, () => {

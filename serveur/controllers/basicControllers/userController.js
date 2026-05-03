@@ -48,13 +48,14 @@ exports.login = async (req, res) => {
     const userId = data.USER_ID || data.id || data.UserId || data.userId;
     // Token expiration: default to 7 days, configurable via env JWT_EXPIRES_IN (e.g., '7d')
     const expiresIn = process.env.JWT_EXPIRES_IN || "7d";
+    const actionUser = data.Action_user || '';
     const token = jwt.sign(
-      { id: userId, email: data.login_user },
+      { id: userId, email: data.login_user, actionUser },
       secret,
       { expiresIn }
     );
 
-    res.status(200).json({ message: "exist", token });
+    res.status(200).json({ message: "exist", token, actionUser });
   } catch (e) {
     console.error("Login error:", e);
     res.status(500).json({ message: "fail" });

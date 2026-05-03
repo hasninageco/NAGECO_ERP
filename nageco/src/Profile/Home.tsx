@@ -37,6 +37,19 @@ import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 import DescriptionIcon from '@mui/icons-material/Description';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import SupplyChainPage from '../SupplyChain/SupplyChainPage';
+
+
+
+ 
+import RequisitionEditor from '../SupplyChain/Requisitions/pages/RequisitionEditor';
+import RequisitionDetails from '../SupplyChain/Requisitions/pages/RequisitionDetails';
+import RequisitionReports from '../SupplyChain/Requisitions/pages/RequisitionReports';
+import QuoteRequestsPage from '../SupplyChain/Requisitions/pages/QuoteRequestsPage';
+
+
+
+
 
 import Logo from '../ui-component/Logo2';
 import nagecoLogo from '../NAGECO.jpg';
@@ -319,6 +332,40 @@ const getNavigation = (t: TFunction): Navigation => [
             icon: <PeopleAltIcon />,
           },
         ],
+      },
+    ],
+  },
+
+
+
+
+
+  // ✅ Supply Chain (مكانه الصح هنا)
+  // ✅ Supply Chain
+  {
+    segment: 'supplyChain',
+    title: 'Supply Chain',
+    icon: <WarehouseIcon />,
+    children: [
+      {
+        segment: 'sections-products',
+        title: 'Sections & Products',
+        icon: <CategoryIcon />,
+      },
+      {
+        segment: 'requisitions',
+        title: 'Requisitions',
+        icon: <DescriptionIcon />, // أو ListAltIcon
+      },
+      {
+        segment: 'requisition-reports',
+        title: 'Requisition Reports',
+        icon: <DescriptionIcon />,
+      },
+      {
+        segment: 'quote-requests',
+        title: 'Quote Requests',
+        icon: <DescriptionIcon />,
       },
     ],
   },
@@ -721,6 +768,23 @@ export default function Home(props: any) {
         return <DocumentsPage onBack={() => router.navigate('/fleetManagement')} />;
       case '/fleetManagement/notifications':
         return <NotificationsPage onBack={() => router.navigate('/fleetManagement')} />;
+
+
+
+
+         case '/supplyChain/sections-products':
+      return <SupplyChainPage />;
+
+    case '/supplyChain/requisitions':
+      return <RequisitionEditor />;
+
+    case '/supplyChain/requisition-reports':
+      return <RequisitionReports onBack={() => router?.navigate('/supplyChain/requisitions')} />;
+
+    case '/supplyChain/quote-requests':
+      return <QuoteRequestsPage onBack={() => router?.navigate('/supplyChain/requisition-reports')} />;
+
+
 
       default:
         return <div>{t('common.pageNotFound')}</div>;

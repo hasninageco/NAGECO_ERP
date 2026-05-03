@@ -1,0 +1,2 @@
+{"ts":"2026-02-23T07:04:55.284Z","claimId":7,"action":"document_uploaded","actor":{"id":1262,"email":"info@nageco.com"},"meta":{"fileName":"ÙØ®ØµØµ Ø§ÙÙØ®Ø²ÙÙ Ø§ÙØ±Ø§ÙØ¯ ÙÙÙ Ø§ÙÙØ¹Ø§ÙÙØ± Ø§ÙÙØ­Ø§Ø³Ø¨ÙØ©.pdf"}}
+{"ts":"2026-02-23T07:04:55.375Z","claimId":7,"action":"claim_resubmitted","actor":{"id":1262,"email":"info@nageco.com"},"meta":{"statusFrom":"NeedDocuments","statusTo":"Pending","reason":"documents_uploaded"}}

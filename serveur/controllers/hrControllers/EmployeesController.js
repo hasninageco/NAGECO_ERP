@@ -1,6 +1,7 @@
 const Sequelize = require("sequelize");
 const { Op } = Sequelize;
 const employee = require("../../models/hr/employee");
+const costCenter = require("../../models/hr/CostCenter");
 const jwt = require("jsonwebtoken");
 
 // Fetch all records
@@ -29,6 +30,56 @@ exports.find = async (req, res) => {
       res.json(data);
     } catch (dbErr) {
       res.status(500).json({ message: "Error fetching records" });
+    }
+  });
+};
+
+// Fetch one employee by Ref_emp
+exports.findByRef = async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ message: "Authorization header missing" });
+
+  const token = authHeader.split(" ")[1];
+  if (!token) return res.status(401).json({ message: "Token missing" });
+
+  jwt.verify(token, process.env.JWT_SECRET, async (err) => {
+    if (err) return res.status(401).json({ message: "Invalid or expired token" });
+
+    const ref = (req.params.Ref_emp || "").trim();
+    if (!ref) return res.status(400).json({ message: "Ref_emp is required" });
+
+    try {
+      const record = await employee.findOne({
+        where: {
+          STATE: true,
+          Ref_emp: ref,
+        },
+        attributes: ["ID_EMP", "NAME", "Ref_emp", "COST_CENTER", "date_naissance", "SEXE"],
+      });
+
+      if (!record) return res.status(404).json({ message: "Employee not found" });
+
+      // COST_CENTER stores the administration id (id_administratin). Return readable details too.
+      let cc = null;
+      const ccIdRaw = record.get("COST_CENTER");
+      const ccId = ccIdRaw != null && String(ccIdRaw).trim() !== "" ? Number(ccIdRaw) : NaN;
+      if (Number.isFinite(ccId)) {
+        cc = await costCenter.findOne({
+          where: { id_administratin: ccId },
+          attributes: ["id_administratin", "administration", "administration_ar", "Branche"],
+        });
+      }
+
+      const base = record.toJSON();
+      res.json({
+        ...base,
+        COST_CENTER_NAME: cc ? cc.administration : null,
+        COST_CENTER_AR: cc ? cc.administration_ar : null,
+        COST_CENTER_CODE: cc ? cc.Branche : null,
+      });
+    } catch (dbErr) {
+      console.error("Employees findByRef error:", dbErr);
+      res.status(500).json({ message: "Error fetching employee" });
     }
   });
 };
