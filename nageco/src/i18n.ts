@@ -77,11 +77,26 @@ const resources = {
         missions: 'Missions',
         loanEquipment: 'Loan Equipment',
         delegation: 'Delegation',
+        archive: 'Archive',
+        paperTypes: 'Paper Types',
+        companies: 'Companies',
+        financeArchive: 'Finance Archive',
+        hrArchive: 'HR Archive',
+        generalArchive: 'General Archive',
       },
 
       fleet: {
         landingDescription: 'Select a Fleet item from the left sidebar to open the workspace.',
         modulePlaceholder: 'This Fleet module page is added and ready for detailed UI implementation.',
+      },
+
+      archive: {
+        landingDescription: 'Select an Archive item from the left sidebar to open the workspace.',
+        paperTypesDescription: 'Paper type definitions for archive workflows will be managed here.',
+        companiesDescription: 'Companies master data for archive workflows will be managed here.',
+        financeDescription: 'Finance archive documents and records will be managed here.',
+        hrDescription: 'HR archive documents and records will be managed here.',
+        generalDescription: 'General archive documents and records will be managed here.',
       },
 
       insurance: {
@@ -704,11 +719,26 @@ const resources = {
         missions: 'مهام',
         loanEquipment: 'إعارة معدات',
         delegation: 'تفويض',
+        archive: 'الأرشيف',
+        paperTypes: 'أنواع الأوراق',
+        companies: 'الشركات',
+        financeArchive: 'أرشيف المالية',
+        hrArchive: 'أرشيف الموارد البشرية',
+        generalArchive: 'الأرشيف العام',
       },
 
       fleet: {
         landingDescription: 'اختر عنصراً من عناصر الأسطول في القائمة الجانبية اليسرى لفتح مساحة العمل.',
         modulePlaceholder: 'تمت إضافة صفحة وحدة الأسطول وهي جاهزة لتنفيذ الواجهة التفصيلية.',
+      },
+
+      archive: {
+        landingDescription: 'اختر عنصراً من الأرشيف في القائمة الجانبية اليسرى لفتح مساحة العمل.',
+        paperTypesDescription: 'ستتم إدارة تعريفات أنواع الأوراق الخاصة بالأرشيف هنا.',
+        companiesDescription: 'ستتم إدارة البيانات الرئيسية للشركات الخاصة بالأرشيف هنا.',
+        financeDescription: 'ستتم إدارة مستندات وسجلات أرشيف المالية هنا.',
+        hrDescription: 'ستتم إدارة مستندات وسجلات أرشيف الموارد البشرية هنا.',
+        generalDescription: 'ستتم إدارة مستندات وسجلات الأرشيف العام هنا.',
       },
 
       insurance: {

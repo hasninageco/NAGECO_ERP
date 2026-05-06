@@ -453,6 +453,22 @@ export default function AnnualLeaveDialog(props: AnnualLeaveDialogProps) {
     return employees.find((e) => Number(e.ID_EMP) === id) ?? null;
   }, [employees, form.id_emp]);
 
+  const getNumeric = React.useCallback((value: unknown): number | null => {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }, []);
+
+  const selectedAnnualLeaveBalance = React.useMemo(() => {
+    return getNumeric(selectedEmployee?.NetIjaza);
+  }, [getNumeric, selectedEmployee?.NetIjaza]);
+
+  const selectedFieldBreakBalance = React.useMemo(() => {
+    const primary = getNumeric(selectedEmployee?.NetIjaza_desert);
+    if (primary != null) return primary;
+    return getNumeric(selectedEmployee?.SOLDE_JOUR_CONGEE_desert);
+  }, [getNumeric, selectedEmployee?.NetIjaza_desert, selectedEmployee?.SOLDE_JOUR_CONGEE_desert]);
+
   const rangeFromTo = React.useMemo(() => {
     const start = form.date_depart ? dayjs(form.date_depart) : null;
     const end = form.date_end ? dayjs(form.date_end) : null;
@@ -571,6 +587,11 @@ export default function AnnualLeaveDialog(props: AnnualLeaveDialogProps) {
     />
   );
 
+  // Calculate the number of holidays in the selected period
+  const holidayCount = React.useMemo(() => {
+    return holidayDays.filter((day) => day.exists).length;
+  }, [holidayDays]);
+
   return (
     <Dialog
       open={open}
@@ -615,6 +636,24 @@ export default function AnnualLeaveDialog(props: AnnualLeaveDialogProps) {
                           {emp.NAME} ({emp.Ref_emp})
                         </li>
                       )}
+                    />
+                  </Stack>
+
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                    <TextField
+                      label="Annual Leave Balance"
+                      size="small"
+                      value={selectedAnnualLeaveBalance ?? ''}
+                      InputProps={{ readOnly: true }}
+                      sx={{ width: { xs: '100%', sm: 254 }, maxWidth: 254 }}
+                    />
+
+                    <TextField
+                      label="Field Break Balance"
+                      size="small"
+                      value={selectedFieldBreakBalance ?? ''}
+                      InputProps={{ readOnly: true }}
+                      sx={{ width: { xs: '100%', sm: 254 }, maxWidth: 254 }}
                     />
                   </Stack>
 
@@ -693,7 +732,14 @@ export default function AnnualLeaveDialog(props: AnnualLeaveDialogProps) {
 
                   {/* Row 4: Numbers */}
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} useFlexGap flexWrap="wrap">
-                     
+                    <TextField
+                      label="Holidays"
+                      type="number"
+                      size="small"
+                      value={form.jour_furier || holidayCount}
+                      InputProps={{ readOnly: true }}
+                      sx={{ width: 120 }}
+                    />
 
                     <TextField
                       label="Net Vacation"

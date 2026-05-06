@@ -2,7 +2,7 @@ import * as React from 'react';
 import { createTheme, ThemeProvider, Theme } from '@mui/material/styles';
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
-import rtlPlugin from 'stylis-plugin-rtl';
+import rtlPlugin from '@mui/stylis-plugin-rtl';
 import { prefixer } from 'stylis';
 import {
   AppProvider,
@@ -12,6 +12,10 @@ import {
   PageContainer,
 } from '@toolpad/core';
 import DashboardIcon from '@mui/icons-material/Dashboard';
+import ArchiveIcon from '@mui/icons-material/Archive';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import BadgeIcon from '@mui/icons-material/Badge';
+import FolderIcon from '@mui/icons-material/Folder';
 import SettingsIcon from '@mui/icons-material/Settings';
 import Diversity3Icon from '@mui/icons-material/Diversity3';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
@@ -332,6 +336,39 @@ const getNavigation = (t: TFunction): Navigation => [
             icon: <PeopleAltIcon />,
           },
         ],
+      },
+    ],
+  },
+
+  {
+    segment: 'archive',
+    title: t('nav.archive'),
+    icon: <ArchiveIcon />,
+    children: [
+      {
+        segment: 'paper-types',
+        title: t('nav.paperTypes'),
+        icon: <CategoryIcon />,
+      },
+      {
+        segment: 'companies',
+        title: t('nav.companies'),
+        icon: <PeopleAltIcon />,
+      },
+      {
+        segment: 'finance',
+        title: t('nav.financeArchive'),
+        icon: <AccountBalanceIcon />,
+      },
+      {
+        segment: 'hr',
+        title: t('nav.hrArchive'),
+        icon: <BadgeIcon />,
+      },
+      {
+        segment: 'general',
+        title: t('nav.generalArchive'),
+        icon: <FolderIcon />,
       },
     ],
   },
@@ -768,6 +805,49 @@ export default function Home(props: any) {
         return <DocumentsPage onBack={() => router.navigate('/fleetManagement')} />;
       case '/fleetManagement/notifications':
         return <NotificationsPage onBack={() => router.navigate('/fleetManagement')} />;
+
+      case '/archive':
+        return (
+          <FleetPlaceholderPage
+            title={t('nav.archive')}
+            description={t('archive.landingDescription')}
+          />
+        );
+      case '/archive/paper-types':
+        return (
+          <FleetPlaceholderPage
+            title={t('nav.paperTypes')}
+            description={t('archive.paperTypesDescription')}
+          />
+        );
+      case '/archive/companies':
+        return (
+          <FleetPlaceholderPage
+            title={t('nav.companies')}
+            description={t('archive.companiesDescription')}
+          />
+        );
+      case '/archive/finance':
+        return (
+          <FleetPlaceholderPage
+            title={t('nav.financeArchive')}
+            description={t('archive.financeDescription')}
+          />
+        );
+      case '/archive/hr':
+        return (
+          <FleetPlaceholderPage
+            title={t('nav.hrArchive')}
+            description={t('archive.hrDescription')}
+          />
+        );
+      case '/archive/general':
+        return (
+          <FleetPlaceholderPage
+            title={t('nav.generalArchive')}
+            description={t('archive.generalDescription')}
+          />
+        );
 
 
 

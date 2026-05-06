@@ -6,9 +6,12 @@ import TimesheetsToolbar from './components/TimesheetsToolbar';
 import TimesheetsGrid from './components/TimesheetsGrid';
 import type { DayKey, EmployeeTypeFilter, TimesheetApiRow } from './types';
 import { dayKey, getDaysInMonth, normalizeDayValue } from './timesheetUtils';
+import AnnualLeaveDialog from '../Compensationspages/LeavesBalances/AnnualLeaveDialog';
+import type { EMPLOYEE } from '../Compensationspages/LeavesBalances/ALBalanceTable';
 
 const apiUrlJsi = buildApiUrl('/jsi');
 const apiUrlWw = buildApiUrl('/wws');
+const apiUrlEmployees = buildApiUrl('/employees');
 
 function getDefaultMonthYear() {
   const now = new Date();
@@ -26,8 +29,10 @@ export default function TimesheetsPage({ attachedNumberPrefix = '' }: Timesheets
   const [employeeType, setEmployeeType] = React.useState<EmployeeTypeFilter>('all');
 
   const [rows, setRows] = React.useState<TimesheetApiRow[]>([]);
+  const [employeesDirectory, setEmployeesDirectory] = React.useState<EMPLOYEE[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [snack, setSnack] = React.useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [newVacationOpen, setNewVacationOpen] = React.useState(false);
 
   // Find/search
   const [searchInput, setSearchInput] = React.useState('');
@@ -52,6 +57,11 @@ export default function TimesheetsPage({ attachedNumberPrefix = '' }: Timesheets
 
   // id_tran -> changed day fields
   const [dirty, setDirty] = React.useState<Record<number, Partial<Record<DayKey, string | null>>>>({});
+
+  const isRowLocked = React.useCallback((row: TimesheetApiRow | undefined | null) => {
+    if (!row) return false;
+    return row.IS_OK === true || (row as any).IS_OK === 1 || (row as any).IS_OK === '1';
+  }, []);
 
   const daysInMonth = React.useMemo(() => getDaysInMonth(year, month), [year, month]);
   const effectiveAttachedNumberPrefix = React.useMemo(
@@ -97,6 +107,25 @@ export default function TimesheetsPage({ attachedNumberPrefix = '' }: Timesheets
     fetchTimesheets();
   }, [fetchTimesheets]);
 
+  const fetchEmployeesDirectory = React.useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const res = await axios.get<EMPLOYEE[]>(`${apiUrlEmployees}/all`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setEmployeesDirectory(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setEmployeesDirectory([]);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!newVacationOpen) return;
+    fetchEmployeesDirectory();
+  }, [fetchEmployeesDirectory, newVacationOpen]);
+
   const dirtyCount = React.useMemo(() => Object.keys(dirty).length, [dirty]);
 
   const visibleRows = React.useMemo(() => {
@@ -133,12 +162,78 @@ export default function TimesheetsPage({ attachedNumberPrefix = '' }: Timesheets
     });
   }, [rows, searchApplied, tableFilters.costCenter, tableFilters.employeeName, tableFilters.empNo]);
 
+  const closedRowsCount = React.useMemo(() => rows.filter((r) => isRowLocked(r)).length, [isRowLocked, rows]);
+
+  const vacationEmployees = React.useMemo<EMPLOYEE[]>(() => {
+    const employeeById = new Map<number, EMPLOYEE>();
+    for (const emp of employeesDirectory) {
+      const empId = Number(emp.ID_EMP);
+      if (!Number.isFinite(empId) || empId <= 0) continue;
+      employeeById.set(empId, emp);
+    }
+
+    const map = new Map<number, EMPLOYEE>();
+    for (const r of rows) {
+      const id = Number(r.id_emp);
+      if (!Number.isFinite(id) || id <= 0) continue;
+      if (map.has(id)) continue;
+
+      const fullEmployee = employeeById.get(id);
+      if (fullEmployee) {
+        map.set(id, {
+          ...fullEmployee,
+          NAME: (fullEmployee.NAME ?? String(r.employeeName ?? r.NAME ?? r.nom ?? '').trim()) || null,
+          Ref_emp: (fullEmployee.Ref_emp ?? String(r.Ref_emp ?? '').trim()) || null,
+          COST_CENTER: (fullEmployee.COST_CENTER ?? String(r.COST_CENTER ?? r.COST_CENTER_CODE ?? '').trim()) || null,
+          IS_FOREINGHT: fullEmployee.IS_FOREINGHT ?? r.IS_FOREINGHT ?? null,
+        });
+        continue;
+      }
+
+      map.set(id, {
+        ID_EMP: id,
+        NAME: String(r.employeeName ?? r.NAME ?? r.nom ?? '').trim() || null,
+        MAIL: null,
+        End_contrat: null,
+        STAR_CONTRAT: null,
+        Nationality: null,
+        Ref_emp: String(r.Ref_emp ?? '').trim() || null,
+        COST_CENTER: String(r.COST_CENTER ?? r.COST_CENTER_CODE ?? '').trim() || null,
+        Picture: null,
+        date_naissance: null,
+        name_english: null,
+        IS_FOREINGHT: r.IS_FOREINGHT ?? null,
+        attached_number: null,
+        NAME_EN: null,
+        IS_OK_POUR_MALAK: null,
+        NetIjaza: null,
+        NetIjaza_desert: null,
+        SOLDE_JOUR_CONGEE_desert: null,
+        Spends_Vacation: null,
+        Spends_Field_Break: null,
+        city: null,
+        Desert_pass_No: null,
+        Desert_pass_Comment: null,
+        Desert_pass_Sent_Email: null,
+        STATE: null,
+      });
+    }
+
+    return Array.from(map.values()).sort((a, b) => {
+      const byRef = String(a.Ref_emp ?? '').localeCompare(String(b.Ref_emp ?? ''));
+      if (byRef !== 0) return byRef;
+      return String(a.NAME ?? '').localeCompare(String(b.NAME ?? ''));
+    });
+  }, [employeesDirectory, rows]);
+
   const handleSave = React.useCallback(async () => {
     const token = localStorage.getItem('token');
+    const rowById = new Map<number, TimesheetApiRow>(rows.map((r) => [r.id_tran, r]));
     const updates = Object.entries(dirty).map(([id, fields]) => ({
       id_tran: Number(id),
       fields,
-    }));
+    }))
+      .filter((u) => !isRowLocked(rowById.get(u.id_tran)));
 
     if (updates.length === 0) return;
 
@@ -156,10 +251,15 @@ export default function TimesheetsPage({ attachedNumberPrefix = '' }: Timesheets
       setSnack({ type: 'error', message: err?.response?.data?.message || 'Save failed' });
       setLoading(false);
     }
-  }, [dirty, fetchTimesheets]);
+  }, [dirty, fetchTimesheets, isRowLocked, rows]);
 
   const onRowUpdate = React.useCallback(
     (newRow: TimesheetApiRow, oldRow: TimesheetApiRow) => {
+      if (isRowLocked(oldRow) || isRowLocked(newRow)) {
+        setSnack({ type: 'error', message: 'This timesheet is locked (IS_OK) and cannot be edited' });
+        return oldRow;
+      }
+
       const changes: Partial<Record<DayKey, string | null>> = {};
 
       for (let d = 1; d <= 31; d++) {
@@ -190,6 +290,7 @@ export default function TimesheetsPage({ attachedNumberPrefix = '' }: Timesheets
               if (!parsed) continue;
               const row = nextRows.find((x) => x.id_tran === parsed.id_tran);
               if (!row) continue;
+              if (isRowLocked(row)) continue;
               (row as any)[parsed.field] = editedValue;
             }
             return nextRows;
@@ -200,6 +301,8 @@ export default function TimesheetsPage({ attachedNumberPrefix = '' }: Timesheets
             for (const sk of Array.from(selectedSet)) {
               const parsed = parseCellKey(sk);
               if (!parsed) continue;
+              const row = rows.find((x) => x.id_tran === parsed.id_tran);
+              if (isRowLocked(row)) continue;
               const rowId = parsed.id_tran;
               next[rowId] = { ...(next[rowId] || {}), [parsed.field]: editedValue };
             }
@@ -210,13 +313,24 @@ export default function TimesheetsPage({ attachedNumberPrefix = '' }: Timesheets
 
       return newRow;
     },
-    [parseCellKey, selectedSet]
+    [isRowLocked, parseCellKey, rows, selectedSet]
   );
 
   const applyValueToSelected = React.useCallback(
     async (value: string | null) => {
       if (selectedKeys.length === 0) return;
       const token = localStorage.getItem('token');
+      const rowById = new Map<number, TimesheetApiRow>(rows.map((r) => [r.id_tran, r]));
+      const editableSelectedKeys = selectedKeys.filter((sk) => {
+        const parsed = parseCellKey(sk);
+        if (!parsed) return false;
+        return !isRowLocked(rowById.get(parsed.id_tran));
+      });
+
+      if (editableSelectedKeys.length === 0) {
+        setSnack({ type: 'error', message: 'Selected timesheets are locked (IS_OK) and cannot be edited' });
+        return;
+      }
 
       // Validate code against WADH3_WADHIFI before applying (only when a value is provided)
       if (value != null) {
@@ -247,7 +361,7 @@ export default function TimesheetsPage({ attachedNumberPrefix = '' }: Timesheets
         const indexById = new Map<number, number>();
         nextRows.forEach((r, idx) => indexById.set(r.id_tran, idx));
 
-        for (const sk of selectedKeys) {
+        for (const sk of editableSelectedKeys) {
           const parsed = parseCellKey(sk);
           if (!parsed) continue;
           const idx = indexById.get(parsed.id_tran);
@@ -260,7 +374,7 @@ export default function TimesheetsPage({ attachedNumberPrefix = '' }: Timesheets
       // Mark dirty for API save
       setDirty((prev) => {
         const next = { ...prev };
-        for (const sk of selectedKeys) {
+        for (const sk of editableSelectedKeys) {
           const parsed = parseCellKey(sk);
           if (!parsed) continue;
           const rowId = parsed.id_tran;
@@ -269,11 +383,17 @@ export default function TimesheetsPage({ attachedNumberPrefix = '' }: Timesheets
         return next;
       });
     },
-    [apiUrlWw, parseCellKey, selectedKeys]
+    [apiUrlWw, isRowLocked, parseCellKey, rows, selectedKeys]
   );
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {closedRowsCount > 0 ? (
+        <Alert severity="warning" variant="filled">
+          This timesheets period is closed. {closedRowsCount} row(s) are locked and cannot be edited.
+        </Alert>
+      ) : null}
+
       <Paper sx={{ p: 1.5 }} variant="outlined">
         <TimesheetsToolbar
           month={month}
@@ -287,6 +407,7 @@ export default function TimesheetsPage({ attachedNumberPrefix = '' }: Timesheets
           onEmployeeTypeChange={setEmployeeType}
           onRefresh={fetchTimesheets}
           onSave={handleSave}
+          onOpenNewVacation={() => setNewVacationOpen(true)}
           onSearchTextChange={setSearchInput}
           onFind={() => setSearchApplied(searchInput)}
           onClearSearch={() => {
@@ -357,6 +478,13 @@ export default function TimesheetsPage({ attachedNumberPrefix = '' }: Timesheets
           {visibleRows.length !== rows.length ? ` of ${rows.length}` : ''}
         </Box>
       </Paper>
+
+      <AnnualLeaveDialog
+        open={newVacationOpen}
+        employees={vacationEmployees}
+        onClose={() => setNewVacationOpen(false)}
+        onSaved={fetchTimesheets}
+      />
 
       {snack ? (
         <Snackbar

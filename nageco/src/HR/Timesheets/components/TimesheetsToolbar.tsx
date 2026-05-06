@@ -48,6 +48,7 @@ export type TimesheetsToolbarProps = {
   onEmployeeTypeChange: (type: EmployeeTypeFilter) => void;
   onRefresh: () => void;
   onSave: () => void;
+  onOpenNewVacation: () => void;
   onSearchTextChange: (value: string) => void;
   onFind: () => void;
   onClearSearch: () => void;
@@ -66,6 +67,7 @@ export default function TimesheetsToolbar(props: TimesheetsToolbarProps) {
     onEmployeeTypeChange,
     onRefresh,
     onSave,
+    onOpenNewVacation,
     onSearchTextChange,
     onFind,
     onClearSearch,
@@ -144,7 +146,13 @@ export default function TimesheetsToolbar(props: TimesheetsToolbarProps) {
           <Button size="small" variant="outlined" startIcon={<CalculateIcon />} disabled>
             Calc. Time Sheets
           </Button>
-          <Button size="small" variant="outlined" startIcon={<EventNoteIcon />} disabled>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<EventNoteIcon />}
+            onClick={onOpenNewVacation}
+            disabled={loading}
+          >
             New Vacation
           </Button>
         </Stack>

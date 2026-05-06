@@ -29,6 +29,11 @@ function makeKey(id: number, field: DayKey): string {
   return `${id}:${field}`;
 }
 
+function isLockedRow(row: TimesheetApiRow | undefined | null): boolean {
+  if (!row) return false;
+  return row.IS_OK === true || (row as any).IS_OK === 1 || (row as any).IS_OK === '1';
+}
+
 function buildDayColumns(
   daysInMonth: number,
   selectedSet: Set<string>,
@@ -122,6 +127,7 @@ export default function TimesheetsGrid(props: TimesheetsGridProps) {
       for (let r = r1; r <= r2; r++) {
         const row = rows[r];
         if (!row) continue;
+        if (isLockedRow(row)) continue;
         for (let d = d1; d <= d2; d++) {
           if (d > daysInMonth) continue;
           keys.push(makeKey(row.id_tran, dayKey(d)));
@@ -137,6 +143,8 @@ export default function TimesheetsGrid(props: TimesheetsGridProps) {
       onMouseDownCell: ({ id, day, ctrlKey, shiftKey }: { id: number; day: number; ctrlKey: boolean; shiftKey: boolean }) => {
         const rowIndex = rowIndexById.get(id);
         if (rowIndex == null) return;
+        const row = rows[rowIndex];
+        if (!row || isLockedRow(row)) return;
 
         // Shift = range selection from existing anchor (or current cell)
         if (shiftKey) {
@@ -166,10 +174,12 @@ export default function TimesheetsGrid(props: TimesheetsGridProps) {
         if (!anchor) return;
         const rowIndex = rowIndexById.get(id);
         if (rowIndex == null) return;
+        const row = rows[rowIndex];
+        if (!row || isLockedRow(row)) return;
         setRangeSelection(anchor, { rowIndex, day });
       },
     };
-  }, [onSelectedKeysChange, rowIndexById, selectedSet, setRangeSelection]);
+  }, [onSelectedKeysChange, rowIndexById, rows, selectedSet, setRangeSelection]);
 
   React.useEffect(() => {
     const onUp = () => {
@@ -275,6 +285,7 @@ export default function TimesheetsGrid(props: TimesheetsGridProps) {
             event.preventDefault();
             const keys: string[] = [];
             for (const r of rows) {
+              if (isLockedRow(r)) continue;
               for (let d = 1; d <= daysInMonth; d++) {
                 keys.push(makeKey(r.id_tran, dayKey(d)));
               }
@@ -294,6 +305,10 @@ export default function TimesheetsGrid(props: TimesheetsGridProps) {
         }}
         processRowUpdate={(newRow, oldRow) => onRowUpdate(newRow as any, oldRow as any) as any}
         onProcessRowUpdateError={onRowUpdateError}
+        isCellEditable={(params) => {
+          const day = fieldToDay(String(params.field));
+          return !!day && day <= daysInMonth && !isLockedRow(params.row as TimesheetApiRow);
+        }}
         initialState={{
           columns: { columnVisibilityModel },
         }}
