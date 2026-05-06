@@ -22,6 +22,7 @@ const User = sequelize.define("userSN", {
   login_user: DataTypes.TEXT,
   pwd_user: DataTypes.TEXT,
   Action_user: DataTypes.TEXT,
+  Web_Permissions: DataTypes.TEXT,
   State: DataTypes.BOOLEAN,
   ref_emp: DataTypes.TEXT,
   ACCEPT_MODIFY: DataTypes.BOOLEAN,

@@ -49,6 +49,17 @@ function formatDateForMSSQL(date) {
   return `${yyyy}-${MM}-${dd} ${HH}:${mm}:${ss}.${SSS}`;
 }
 
+function buildSqlServerDateWhere(tableName, columnName, fromStr, toStr) {
+  const castExpr = `TRY_CONVERT(datetime, [${tableName}].[${columnName}])`;
+  if (fromStr && toStr) {
+    return Sequelize.literal(`${castExpr} IS NOT NULL AND ${castExpr} BETWEEN N'${fromStr}' AND N'${toStr}'`);
+  }
+  if (fromStr) {
+    return Sequelize.literal(`${castExpr} IS NOT NULL AND ${castExpr} >= N'${fromStr}'`);
+  }
+  return {};
+}
+
 // CRUD
 exports.find = (req, res) => {
   authenticate(req, res, async () => {
@@ -130,12 +141,7 @@ exports.summary = (req, res) => {
       const fromStr = formatDateForMSSQL(fromParam);
       const toStr = formatDateForMSSQL(toParam);
 
-      let where = {};
-      if (fromStr && toStr) {
-        where = Sequelize.literal(`ISDATE([Request_art].[date_req]) = 1 AND CONVERT(datetime, [Request_art].[date_req]) BETWEEN N'${fromStr}' AND N'${toStr}'`);
-      } else if (fromStr) {
-        where = Sequelize.literal(`ISDATE([Request_art].[date_req]) = 1 AND CONVERT(datetime, [Request_art].[date_req]) >= N'${fromStr}'`);
-      }
+      const where = buildSqlServerDateWhere('Request_art', 'date_req', fromStr, toStr);
 
       const total = await Requisition.count({ where: where || {} });
 

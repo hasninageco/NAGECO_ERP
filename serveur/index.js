@@ -51,6 +51,22 @@ const claimDocumentsRoutes = require("./routes/insuranceRoute/claimDocumentsRout
 const balancesRoutes = require("./routes/insuranceRoute/balancesRoutes");
 const financeRoutes = require("./routes/insuranceRoute/financeRoutes");
 
+// Fleet Management
+const fleetSupplierRoutes = require("./routes/fleetRoute/supplierRoutes");
+const fleetVehicleRoutes = require("./routes/fleetRoute/vehicleRoutes");
+const fleetInsuranceRoutes = require("./routes/fleetRoute/insuranceRoutes");
+const fleetMaintenanceRoutes = require("./routes/fleetRoute/maintenanceRoutes");
+const fleetTripRoutes = require("./routes/fleetRoute/tripRoutes");
+const fleetNotificationRoutes = require("./routes/fleetRoute/notificationRoutes");
+const fleetDocumentRoutes = require("./routes/fleetRoute/documentRoutes");
+
+// Archive
+const administrationArchiveRoutes = require("./routes/archiveRoute/administrationArchiveRoutes");
+const archiveRoutes = require("./routes/archiveRoute/archiveRoutes");
+const archiveFinanceRoutes = require("./routes/archiveRoute/archiveFinanceRoutes");
+const typePapierRoutes = require("./routes/archiveRoute/typePapierRoutes");
+const steRoutes = require("./routes/archiveRoute/steRoutes");
+
 
 const cors = require("cors");  
 const localBuildPath = path.join(__dirname, "build");
@@ -108,6 +124,20 @@ app.use("/medicalInsurance/claimLines", claimLinesRoutes);
 app.use("/medicalInsurance/claimDocuments", claimDocumentsRoutes);
 app.use("/medicalInsurance/balances", balancesRoutes);
 app.use("/medicalInsurance/finance", financeRoutes);
+
+app.use("/fleet/suppliers", fleetSupplierRoutes);
+app.use("/fleet/vehicles", fleetVehicleRoutes);
+app.use("/fleet/insurance", fleetInsuranceRoutes);
+app.use("/fleet/maintenance", fleetMaintenanceRoutes);
+app.use("/fleet/trips", fleetTripRoutes);
+app.use("/fleet/notifications", fleetNotificationRoutes);
+app.use("/fleet/documents", fleetDocumentRoutes);
+
+app.use("/archive/administrations", administrationArchiveRoutes);
+app.use("/archive/records", archiveRoutes);
+app.use("/archive/finance", archiveFinanceRoutes);
+app.use("/archive/type-papier", typePapierRoutes);
+app.use("/archive/ste", steRoutes);
 
 app.use(express.static(clientBuildPath));
 

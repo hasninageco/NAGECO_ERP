@@ -1,4 +1,5 @@
 const jsi = require("../../models/hr/jsi");
+const costCenter = require("../../models/hr/CostCenter");
 const jwt = require("jsonwebtoken");
 const { Op, fn, col, literal, where, QueryTypes } = require("sequelize");
 
@@ -12,6 +13,13 @@ function getJsiTableName() {
 function getEmployeeTableName() {
   // The EMPLOYEE table is referenced by name in the database.
   return '[EMPLOYEE]';
+}
+
+function getCostCenterTableName() {
+  const tn = typeof costCenter.getTableName === 'function' ? costCenter.getTableName() : 'Adminstration';
+  return typeof tn === 'object'
+    ? `${tn.schema ? `[${tn.schema}].` : ''}[${tn.tableName || tn.table || 'Adminstration'}]`
+    : `[${tn}]`;
 }
 
 // Fetch all records
@@ -293,6 +301,8 @@ exports.listTimesheets = async (req, res) => {
     const year = parseInt(req.query.year, 10);
     const employeeTypeRaw = String(req.query.employeeType || 'all').toLowerCase();
     const employeeType = ['all', 'national', 'expat'].includes(employeeTypeRaw) ? employeeTypeRaw : 'all';
+    const attachedNumberPrefixRaw = req.query.attachedNumberPrefix ?? req.query.attached_number ?? '';
+    const attachedNumberPrefix = String(attachedNumberPrefixRaw || '').trim();
 
     if (Number.isNaN(month) || Number.isNaN(year) || month < 1 || month > 12) {
       return res.status(400).json({ message: 'month and year are required' });
@@ -301,6 +311,7 @@ exports.listTimesheets = async (req, res) => {
     try {
       const tableName = getJsiTableName();
       const empTable = getEmployeeTableName();
+      const ccTable = getCostCenterTableName();
 
       const employeeFilterSql =
         employeeType === 'national'
@@ -308,6 +319,16 @@ exports.listTimesheets = async (req, res) => {
           : employeeType === 'expat'
             ? 'AND emp.IS_FOREINGHT = 1'
             : '';
+
+      const escapeLikePrefix = (value) =>
+        String(value)
+          .replace(/\[/g, '[[]')
+          .replace(/%/g, '[%]')
+          .replace(/_/g, '[_]');
+
+      const attachedNumberFilterSql = attachedNumberPrefix
+        ? "AND LTRIM(RTRIM(ISNULL(emp.attached_number, ''))) LIKE :attachedNumberPrefixLike"
+        : '';
 
       const sql = `
         SELECT
@@ -325,19 +346,28 @@ exports.listTimesheets = async (req, res) => {
           jsi.j_21, jsi.j_22, jsi.j_23, jsi.j_24, jsi.j_25, jsi.j_26, jsi.j_27, jsi.j_28, jsi.j_29, jsi.j_30,
           jsi.j_31,
           emp.COST_CENTER,
+          cc.Branche AS COST_CENTER_CODE,
           emp.Ref_emp,
+          emp.attached_number,
           emp.NAME,
           emp.IS_FOREINGHT
         FROM ${tableName} AS jsi
         LEFT JOIN ${empTable} AS emp ON emp.ID_EMP = jsi.id_emp
+        LEFT JOIN ${ccTable} AS cc ON TRY_CAST(emp.COST_CENTER AS INT) = cc.id_administratin
         WHERE MONTH(jsi.DATE_JS) = :month
           AND YEAR(jsi.DATE_JS) = :year
           ${employeeFilterSql}
-        ORDER BY emp.COST_CENTER, jsi.id_emp, jsi.id_tran
+          ${attachedNumberFilterSql}
+        ORDER BY cc.Branche, emp.COST_CENTER, jsi.id_emp, jsi.id_tran
       `;
 
+      const replacements = { month, year };
+      if (attachedNumberPrefix) {
+        replacements.attachedNumberPrefixLike = `${escapeLikePrefix(attachedNumberPrefix)}%`;
+      }
+
       const rows = await jsi.sequelize.query(sql, {
-        replacements: { month, year },
+        replacements,
         type: QueryTypes.SELECT,
       });
 

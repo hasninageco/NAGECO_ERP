@@ -8,7 +8,7 @@ const connectDB = async () => {
     // mongodb connection string
     let config = {
       type: 'mssql',
-      server: 'nageco-server.local',
+      server: '10.0.2.2',
       user: 'nageco', password: 'pass@pass1',
       database: 'FC_NAGECO_WEB',
       Port: 1433,

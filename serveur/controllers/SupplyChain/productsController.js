@@ -1,5 +1,25 @@
 const products = require("../../models/SupplyCahin/Product");
 const jwt = require("jsonwebtoken");
+const { Op } = require("sequelize");
+
+let selectableColumnsCache = null;
+
+const getSelectableColumns = async () => {
+  if (Array.isArray(selectableColumnsCache)) return selectableColumnsCache;
+
+  try {
+    const qi = products.sequelize.getQueryInterface();
+    const described = await qi.describeTable(products.getTableName());
+    const tableColumns = Object.keys(described || {});
+    const modelColumns = Object.keys(products.rawAttributes || {});
+
+    selectableColumnsCache = modelColumns.filter((name) => tableColumns.includes(name));
+    return selectableColumnsCache;
+  } catch (_err) {
+    selectableColumnsCache = null;
+    return null;
+  }
+};
 
 // Utility: authenticate and decode token
 const authenticate = (req, res, callback) => {
@@ -19,11 +39,66 @@ const authenticate = (req, res, callback) => {
 exports.find = (req, res) => {
   authenticate(req, res, async () => {
     try {
-      const data = await products.findAll();
-      res.json(data);
+      const rawPage = Number.parseInt(req.query.page, 10);
+      const rawLimit = Number.parseInt(req.query.limit, 10);
+      const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+      const limit = Number.isFinite(rawLimit) && rawLimit > 0 && rawLimit <= 200 ? rawLimit : 20;
+      const offset = (page - 1) * limit;
+
+      const where = {};
+      const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+      if (q) {
+        where[Op.or] = [
+          { desig_art: { [Op.like]: `%${q}%` } },
+          { BARCODE: { [Op.like]: `%${q}%` } },
+          { Alternante_Code: { [Op.like]: `%${q}%` } },
+          { SCIENTIFIC_NAME: { [Op.like]: `%${q}%` } },
+        ];
+      }
+
+      const sectionId = Number.parseInt(req.query.sectionId, 10);
+      if (Number.isFinite(sectionId)) {
+        where.ID_SECTION = sectionId;
+      }
+
+      if (typeof req.query.category === "string" && req.query.category.trim()) {
+        where.CLASSEMENT = req.query.category.trim();
+      }
+
+      const missingSection = req.query.missingSection;
+      const wantsMissingSection = missingSection === "1" || missingSection === "true";
+      if (wantsMissingSection) {
+        where.ID_SECTION = { [Op.or]: [null, ""] };
+      }
+
+      const selectableColumns = await getSelectableColumns();
+
+      const queryOptions = {
+        where,
+        limit,
+        offset,
+        order: [["Id_art", "DESC"]],
+      };
+
+      if (Array.isArray(selectableColumns) && selectableColumns.length > 0) {
+        queryOptions.attributes = selectableColumns;
+      }
+
+      const data = await products.findAndCountAll(queryOptions);
+      const total = Number(data.count || 0);
+      const totalPages = total > 0 ? Math.ceil(total / limit) : 1;
+
+      res.json({
+        data: data.rows,
+        products: data.rows,
+        total,
+        page,
+        limit,
+        totalPages,
+      });
     } catch (dbErr) {
       console.error("DB ERROR:", dbErr);
-      res.status(500).json({ message: "Error fetching records" });
+      res.status(500).json({ message: dbErr.message || "Error fetching records" });
     }
   });
 };
@@ -134,7 +209,7 @@ exports.update = (req, res) => {
 // Delete a record
 exports.delete = (req, res) => {
   authenticate(req, res, async () => {
-    const id = req.params.id;
+    const id = req.params.Id_art;
     if (!id) return res.status(400).json({ message: "id is required" });
 
     try {

@@ -29,16 +29,22 @@ const MeetingSchedule = sequelize.define('MeetingSchedule', {
     allowNull: true
   },
   members_meeting: {
-    type: DataTypes.STRING,
-    allowNull: false
+    type: DataTypes.TEXT,
+    allowNull: false,
+    field: 'members_meeting'
   },
   Other_members_meeting: {
-    type: DataTypes.STRING,
-    allowNull: true
+    type: DataTypes.TEXT,
+    allowNull: true,
+    field: 'Other_members_meeting'
   },
   comment: {
     type: DataTypes.STRING,
     allowNull: false
+  },
+  Notes: {
+    type: DataTypes.STRING,
+    allowNull: true
   },
   creation_date: {
     type: DataTypes.STRING, // Changed from DataTypes.DATE
