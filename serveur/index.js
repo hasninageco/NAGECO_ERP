@@ -14,6 +14,7 @@ const typeFond = require("./routes/financeroute/typeFondRoutes");
 const coas = require("./routes/financeroute/coaRoutes");
 const wws = require("./routes/Hrroute/wWRoutes");
 const holidays = require("./routes/Hrroute/holidaysRoutes");
+const promotions = require("./routes/Hrroute/promotionRoutes");
 
 const employees = require("./routes/Hrroute/employeesRoutes");
 const children = require("./routes/Hrroute/childrenRoutes");
@@ -96,6 +97,7 @@ app.use("/typeFond", typeFond);
 app.use("/coas", coas);
 app.use("/jsi", jsiRoutes);
 app.use("/holidays", holidays);
+app.use("/promotions", promotions);
 app.use("/chashBookChecks", chashBookCheckRoutes);
 app.use("/sarfEtrLoc", sarfEtrLocRoutes);
 app.use("/sarfCash", sarfCashRoutes);

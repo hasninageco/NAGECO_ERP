@@ -78,6 +78,19 @@ export default function TimesheetsPage({ attachedNumberPrefix = '' }: Timesheets
         params.attachedNumberPrefix = effectiveAttachedNumberPrefix;
       }
 
+      try {
+        await axios.post(
+          `${apiUrlJsi}/timesheets/sync-punches`,
+          null,
+          {
+            params,
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+      } catch (syncErr) {
+        console.warn('Punch sync failed before timesheets load:', syncErr);
+      }
+
       const res = await axios.get<TimesheetApiRow[]>(`${apiUrlJsi}/timesheets`, {
         params,
         headers: { Authorization: `Bearer ${token}` },

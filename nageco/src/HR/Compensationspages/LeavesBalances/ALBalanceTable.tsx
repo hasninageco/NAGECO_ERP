@@ -11,7 +11,6 @@ import {
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ImportExportIcon from '@mui/icons-material/ImportExport';
-import AddIcon from '@mui/icons-material/Add';
 
 export type EMPLOYEE = {
   ID_EMP: number;
@@ -75,6 +74,24 @@ const ALBalanceTable: React.FC<ALBalanceTableProps> = ({
 }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+
+  const toNumeric = (value: unknown): number => {
+    if (value === null || value === undefined || value === '') return 0;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : 0;
+  };
+
+  const getAnnualLeaveCurrentBalance = (emp: EMPLOYEE): number => {
+    return toNumeric(emp.NetIjaza);
+  };
+
+  const getFieldBreakCurrentBalance = (emp: EMPLOYEE): number => {
+    const primary = emp.NetIjaza_desert;
+    if (primary !== null && primary !== undefined) {
+      return toNumeric(primary);
+    }
+    return toNumeric(emp.SOLDE_JOUR_CONGEE_desert);
+  };
  
   // Custom date formatter for 'MMM-dd-yyyy' (e.g., Nov-05-2025)
   const formatDateLocal = (dateStr: string | null): string => {
@@ -111,7 +128,21 @@ const ALBalanceTable: React.FC<ALBalanceTableProps> = ({
       size: 120,
       Cell: ({ cell }) => formatDateLocal(cell.getValue() as string | null)
     },
-     
+    {
+      id: 'annualLeaveCurrentBalance',
+      header: 'Annual Leave Current Balance',
+      size: 150,
+      accessorFn: (row) => getAnnualLeaveCurrentBalance(row),
+      Cell: ({ row }) => getAnnualLeaveCurrentBalance(row.original).toFixed(0),
+    },
+    {
+      id: 'fieldBreakCurrentBalance',
+      header: 'Field Break Current Balance',
+      size: 150,
+      accessorFn: (row) => getFieldBreakCurrentBalance(row),
+      Cell: ({ row }) => getFieldBreakCurrentBalance(row.original).toFixed(0),
+    },
+
     { accessorKey: 'Spends_Vacation', header: 'Spends Vacation', size: 80 },
     { accessorKey: 'coment_nidham_3amal', header: 'Level', size: 160 },
     {
@@ -232,15 +263,6 @@ const ALBalanceTable: React.FC<ALBalanceTableProps> = ({
           sx={{ mr: 1, borderRadius: 3, textTransform: 'none', fontWeight: 'bold', px: 3, py: 1 }}
         >
           Export Excel
-        </Button>
-        <Button
-          variant="outlined"
-          color="primary"
-          startIcon={<AddIcon />}
-          onClick={onAddNew}
-          sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 'bold', px: 3, py: 1 }}
-        >
-          New Entry
         </Button>
       </Box>
     

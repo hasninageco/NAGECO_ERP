@@ -73,6 +73,8 @@ import HRSettings from '../Setup/HR/HRSettings';
 import FinanceSettings from '../Setup/Finance/FinanceSettings';
 import SCSSettings from '../Setup/SCS/SCSSettings';
 import HRCompensaions from '../HR/Compensationspages/HRCompensaions';
+import PromotionsPage from '../HR/Compensationspages/PromotionsPage';
+import EmployeesPage from '../HR/Employees/EmployeesPage';
 import DashboardMain from './DS/DashboardMain';
 import TimesheetsPage from '../HR/Timesheets/TimesheetsPage';
 import {
@@ -99,6 +101,12 @@ import {
   SuppliersPage,
 } from '../Fleet';
 import { encode, decode } from '../utils/urlCrypt';
+import {
+  HEADER_PERMISSION_KEYS,
+  type ParsedPermissions,
+  parseWebPermissions,
+  routePermissionKey,
+} from '../utils/webPermissions';
 
 const rtlCache = createCache({ key: 'muirtl', stylisPlugins: [prefixer, rtlPlugin] });
 const ltrCache = createCache({ key: 'muiltr' });
@@ -281,6 +289,11 @@ const getNavigation = (t: TFunction): Navigation => [
     icon: <Diversity3Icon />,
     children: [
       {
+        segment: 'employees',
+        title: t('nav.employees'),
+        icon: <PeopleAltIcon />,
+      },
+      {
         segment: 'regulationscompensations',
         title: t('nav.compensations'),
         icon: <CategoryIcon />,
@@ -441,6 +454,77 @@ const createDemoTheme = (mode: 'light' | 'dark', direction: 'ltr' | 'rtl'): Them
       },
     },
   });
+
+const isStructureNode = (item: any) => item?.kind === 'header' || item?.kind === 'divider';
+
+const trimNavigationStructure = (items: any[]): any[] => {
+  const next = [...items];
+
+  while (next.length && isStructureNode(next[0])) {
+    next.shift();
+  }
+
+  while (next.length && isStructureNode(next[next.length - 1])) {
+    next.pop();
+  }
+
+  const collapsed: any[] = [];
+  for (const item of next) {
+    const previous = collapsed[collapsed.length - 1];
+    if (isStructureNode(item) && isStructureNode(previous)) {
+      continue;
+    }
+    collapsed.push(item);
+  }
+
+  return collapsed;
+};
+
+const filterNavigationByPermissions = (
+  items: any[],
+  permissions: ParsedPermissions,
+  parentPath: string = '',
+): any[] => {
+  if (!permissions.configured) {
+    return items;
+  }
+
+  const filtered: any[] = [];
+
+  for (const item of items) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+
+    if (isStructureNode(item)) {
+      filtered.push(item);
+      continue;
+    }
+
+    const segment = typeof item.segment === 'string' ? item.segment : '';
+    const itemPath = segment
+      ? `${parentPath}/${segment}`.replace(/\/+/g, '/')
+      : parentPath;
+
+    const children = Array.isArray(item.children)
+      ? filterNavigationByPermissions(item.children, permissions, itemPath)
+      : undefined;
+
+    const isAllowed = permissions.keys.has(routePermissionKey(itemPath));
+    const hasAllowedChildren = Boolean(children && children.length > 0);
+    const parentAllowed = parentPath && permissions.keys.has(routePermissionKey(parentPath));
+
+    // Show item if: explicitly allowed OR has allowed children OR is a direct child of an allowed parent
+    if (isAllowed || hasAllowedChildren || parentAllowed) {
+      filtered.push({
+        ...item,
+        ...(Array.isArray(item.children) ? { children } : {}),
+      });
+    }
+  }
+
+  return trimNavigationStructure(filtered);
+};
 
 function useDemoRouter(initialPath: string): Router {
   // If an encoded path present in the URL (query param `p`), decode and use it
@@ -725,9 +809,66 @@ export default function Home(props: any) {
     }
   }, [loggedUser, pickFirstString]);
 
+  const rawWebPermissions = React.useMemo(() => {
+    const direct = pickFirstString(loggedUser, ['Web_Permissions', 'web_permissions', 'webPermissions']);
+    if (direct) return direct;
+
+    const root = loggedUser as Record<string, unknown> | null;
+    if (root) {
+      const nestedUser = root.userSN;
+      if (nestedUser && typeof nestedUser === 'object') {
+        const nested = pickFirstString(nestedUser as Record<string, unknown>, ['Web_Permissions', 'web_permissions', 'webPermissions']);
+        if (nested) return nested;
+      }
+
+      const dataValues = root.dataValues;
+      if (dataValues && typeof dataValues === 'object') {
+        const nested = pickFirstString(dataValues as Record<string, unknown>, ['Web_Permissions', 'web_permissions', 'webPermissions']);
+        if (nested) return nested;
+      }
+    }
+
+    try {
+      return String(
+        localStorage.getItem('webPermissions') ||
+        localStorage.getItem('Web_Permissions') ||
+        '',
+      ).trim();
+    } catch (e) {
+      return '';
+    }
+  }, [loggedUser, pickFirstString]);
+
+  const webPermissions = React.useMemo(() => parseWebPermissions(rawWebPermissions), [rawWebPermissions]);
+
+  const hasPermissionForRoute = React.useCallback(
+    (path: string) => {
+      if (!webPermissions.configured) return true;
+      return webPermissions.keys.has(routePermissionKey(path));
+    },
+    [webPermissions],
+  );
+
+  const hasPermissionForHeader = React.useCallback(
+    (permissionKey: string) => {
+      if (!webPermissions.configured) return true;
+      return webPermissions.keys.has(permissionKey);
+    },
+    [webPermissions],
+  );
+
   const hasDashboardAccess = React.useMemo(() => actionUser.toLowerCase().includes('dsh'), [actionUser]);
 
   const pageComponent = React.useMemo(() => {
+    if (!hasPermissionForRoute(router.pathname)) {
+      return (
+        <FleetPlaceholderPage
+          title="Access Restricted"
+          description="You do not have permission to view this section."
+        />
+      );
+    }
+
     switch (router.pathname) {
       case '/setting/generals':
         return <GeneralSettings />;
@@ -752,8 +893,14 @@ export default function Home(props: any) {
       case '/humanRessources/regulationscompensations/vacations':
         return <HRCompensaions />;
 
+      case '/humanRessources/employees':
+        return <EmployeesPage />;
+
       case '/humanRessources/regulationscompensations/timeheets':
         return <TimesheetsPage attachedNumberPrefix={loggedUserRefEmp} />;
+
+      case '/humanRessources/regulationscompensations/promotions':
+        return <PromotionsPage />;
 
       // tolerate common spelling variant
       case '/humanRessources/regulationscompensations/timesheets':
@@ -869,7 +1016,7 @@ export default function Home(props: any) {
       default:
         return <div>{t('common.pageNotFound')}</div>;
     }
-  }, [hasDashboardAccess, isRtl, router, t]);
+  }, [hasDashboardAccess, hasPermissionForRoute, isRtl, router, t]);
    
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   // Theme mode state: 'light' or 'dark'
@@ -897,7 +1044,10 @@ export default function Home(props: any) {
   // computed theme
   const demoTheme = React.useMemo(() => createDemoTheme(mode, isRtl ? 'rtl' : 'ltr'), [mode, isRtl]);
 
-  const navigation = React.useMemo(() => getNavigation(t), [t]);
+  const navigation = React.useMemo(
+    () => filterNavigationByPermissions(getNavigation(t) as any[], webPermissions) as Navigation,
+    [t, webPermissions],
+  );
 
   const toggleTheme = () => setMode(prev => (prev === 'light' ? 'dark' : 'light'));
    
@@ -933,6 +1083,7 @@ export default function Home(props: any) {
           gap: 12
         }}>
           {/* New Meeting Button */}
+          {hasPermissionForHeader(HEADER_PERMISSION_KEYS.meetingsSchedule) && (
           <Button
             variant="outlined"
             color="primary"
@@ -952,6 +1103,8 @@ export default function Home(props: any) {
           >
             {t('home.meetingsSchedule')}
           </Button>
+          )}
+          {hasPermissionForHeader(HEADER_PERMISSION_KEYS.languageSelector) && (
           <TextField
             select
             size="small"
@@ -983,7 +1136,8 @@ export default function Home(props: any) {
             <MenuItem value="en">{t('common.english')}</MenuItem>
             <MenuItem value="ar">{t('common.arabic')}</MenuItem>
           </TextField>
-          {(loggedUserName || loggedUserRefEmp) && (
+          )}
+          {hasPermissionForHeader(HEADER_PERMISSION_KEYS.userInfo) && (loggedUserName || loggedUserRefEmp) && (
             <Box
               sx={{
                 mt: 1,
@@ -1010,6 +1164,7 @@ export default function Home(props: any) {
             </Box>
           )}
           {/* Logout Button */}
+          {hasPermissionForHeader(HEADER_PERMISSION_KEYS.logout) && (
             <Button
             variant="outlined"
             color="error"
@@ -1039,7 +1194,10 @@ export default function Home(props: any) {
             >
               {t('common.logout')}
             </Button>
+          )}
+
           {/* Dark / Light toggle */}
+          {hasPermissionForHeader(HEADER_PERMISSION_KEYS.themeToggle) && (
           <IconButton
             onClick={toggleTheme}
             size="small"
@@ -1057,6 +1215,7 @@ export default function Home(props: any) {
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path></svg>
             )}
           </IconButton>
+          )}
         </div>
 
         {/* Meeting Dialog */}

@@ -1,5 +1,6 @@
 const jsi = require("../../models/hr/jsi");
 const costCenter = require("../../models/hr/CostCenter");
+const congee = require("../../models/hr/Congee");
 const jwt = require("jsonwebtoken");
 const { Op, fn, col, literal, where, QueryTypes } = require("sequelize");
 
@@ -19,6 +20,13 @@ function getCostCenterTableName() {
   const tn = typeof costCenter.getTableName === 'function' ? costCenter.getTableName() : 'Adminstration';
   return typeof tn === 'object'
     ? `${tn.schema ? `[${tn.schema}].` : ''}[${tn.tableName || tn.table || 'Adminstration'}]`
+    : `[${tn}]`;
+}
+
+function getCongeeTableName() {
+  const tn = typeof congee.getTableName === 'function' ? congee.getTableName() : 'congee';
+  return typeof tn === 'object'
+    ? `${tn.schema ? `[${tn.schema}].` : ''}[${tn.tableName || tn.table || 'congee'}]`
     : `[${tn}]`;
 }
 
@@ -285,6 +293,120 @@ exports.getsum_B = async (req, res) => {
   });
 };
 
+// Sync day markers j_1..j_31 from punches.
+// Rule: if any punch exists for employee/day, set day marker to 'P'; otherwise keep current value.
+exports.syncTimesheetsFromPunches = async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ message: 'Authorization header missing' });
+
+  const token = authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'Token missing' });
+
+  jwt.verify(token, process.env.JWT_SECRET, async (err) => {
+    if (err) return res.status(401).json({ message: 'Invalid or expired token' });
+
+    const month = parseInt(req.query.month || req.body?.month, 10);
+    const year = parseInt(req.query.year || req.body?.year, 10);
+    const employeeTypeRaw = String(req.query.employeeType || req.body?.employeeType || 'all').toLowerCase();
+    const employeeType = ['all', 'national', 'expat'].includes(employeeTypeRaw) ? employeeTypeRaw : 'all';
+    const attachedNumberPrefixRaw = req.query.attachedNumberPrefix ?? req.query.attached_number ?? req.body?.attachedNumberPrefix ?? req.body?.attached_number ?? '';
+    const attachedNumberPrefix = String(attachedNumberPrefixRaw || '').trim();
+
+    if (Number.isNaN(month) || Number.isNaN(year) || month < 1 || month > 12) {
+      return res.status(400).json({ message: 'month and year are required' });
+    }
+
+    try {
+      const tableName = getJsiTableName();
+      const empTable = getEmployeeTableName();
+      const congeeTable = getCongeeTableName();
+      const monthStartExpr = 'DATEFROMPARTS(:year, :month, 1)';
+
+      const dayAssignmentsSql = Array.from({ length: 31 }, (_, index) => {
+        const day = index + 1;
+        const dayDateExpr = `DATEADD(DAY, ${day - 1}, ${monthStartExpr})`;
+        return `
+          jsi.j_${day} = CASE
+            WHEN ${day} <= DAY(EOMONTH(${monthStartExpr}))
+             AND EXISTS (
+               SELECT 1
+               FROM ${congeeTable} AS cg
+               WHERE cg.id_emp = jsi.id_emp
+                 AND cg.date_depart IS NOT NULL
+                 AND cg.date_end IS NOT NULL
+                 AND NULLIF(LTRIM(RTRIM(ISNULL(cg.type_congeee, ''))), '') IS NOT NULL
+                 AND CAST(${dayDateExpr} AS DATE) BETWEEN CAST(cg.date_depart AS DATE) AND CAST(cg.date_end AS DATE)
+             )
+            THEN (
+              SELECT TOP 1 LTRIM(RTRIM(cg2.type_congeee))
+              FROM ${congeeTable} AS cg2
+              WHERE cg2.id_emp = jsi.id_emp
+                AND cg2.date_depart IS NOT NULL
+                AND cg2.date_end IS NOT NULL
+                AND NULLIF(LTRIM(RTRIM(ISNULL(cg2.type_congeee, ''))), '') IS NOT NULL
+                AND CAST(${dayDateExpr} AS DATE) BETWEEN CAST(cg2.date_depart AS DATE) AND CAST(cg2.date_end AS DATE)
+              ORDER BY cg2.date_creation DESC, cg2.int_con DESC
+            )
+            WHEN ${day} <= DAY(EOMONTH(${monthStartExpr}))
+             AND EXISTS (
+               SELECT 1
+               FROM [fgp].[dbo].[iclock_transaction] AS it
+               WHERE LTRIM(RTRIM((CAST(it.emp_code AS NVARCHAR(50)) COLLATE DATABASE_DEFAULT)))
+                     = LTRIM(RTRIM((ISNULL(emp.Ref_emp, '') COLLATE DATABASE_DEFAULT)))
+                 AND CAST(it.punch_time AS DATE) = ${dayDateExpr}
+             )
+            THEN 'P'
+            ELSE jsi.j_${day}
+          END`;
+      }).join(',\n          ');
+
+      const employeeFilterSql =
+        employeeType === 'national'
+          ? 'AND (emp.IS_FOREINGHT = 0 OR emp.IS_FOREINGHT IS NULL)'
+          : employeeType === 'expat'
+            ? 'AND emp.IS_FOREINGHT = 1'
+            : '';
+
+      const escapeLikePrefix = (value) =>
+        String(value)
+          .replace(/\[/g, '[[]')
+          .replace(/%/g, '[%]')
+          .replace(/_/g, '[_]');
+
+      const attachedNumberFilterSql = attachedNumberPrefix
+        ? "AND LTRIM(RTRIM(ISNULL(emp.attached_number, ''))) LIKE :attachedNumberPrefixLike"
+        : '';
+
+      const sql = `
+        UPDATE jsi
+        SET
+          ${dayAssignmentsSql}
+        FROM ${tableName} AS jsi
+        LEFT JOIN ${empTable} AS emp ON emp.ID_EMP = jsi.id_emp
+        WHERE MONTH(jsi.DATE_JS) = :month
+          AND YEAR(jsi.DATE_JS) = :year
+          ${employeeFilterSql}
+          ${attachedNumberFilterSql}
+      `;
+
+      const replacements = { month, year };
+      if (attachedNumberPrefix) {
+        replacements.attachedNumberPrefixLike = `${escapeLikePrefix(attachedNumberPrefix)}%`;
+      }
+
+      await jsi.sequelize.query(sql, {
+        replacements,
+        type: QueryTypes.UPDATE,
+      });
+
+      return res.json({ synced: true });
+    } catch (dbErr) {
+      console.error('syncTimesheetsFromPunches error:', dbErr);
+      return res.status(500).json({ message: 'Error syncing punch data to timesheets' });
+    }
+  });
+};
+
 // List timesheets (Journal_sahra_importer) for a specific month/year
 // Optional filter: employeeType = 'all' | 'national' | 'expat'
 exports.listTimesheets = async (req, res) => {
@@ -312,6 +434,48 @@ exports.listTimesheets = async (req, res) => {
       const tableName = getJsiTableName();
       const empTable = getEmployeeTableName();
       const ccTable = getCostCenterTableName();
+      const congeeTable = getCongeeTableName();
+      const monthStartExpr = 'DATEFROMPARTS(:year, :month, 1)';
+
+      const baseDayColumnsSql = Array.from({ length: 31 }, (_, index) => `jsi.j_${index + 1}`).join(',\n          ');
+
+      const dayColumnsSql = Array.from({ length: 31 }, (_, index) => {
+        const day = index + 1;
+        const dayDateExpr = `DATEADD(DAY, ${day - 1}, ${monthStartExpr})`;
+        return `
+          CASE
+            WHEN ${day} <= DAY(EOMONTH(${monthStartExpr}))
+             AND EXISTS (
+               SELECT 1
+               FROM ${congeeTable} AS cg
+               WHERE cg.id_emp = jsi.id_emp
+                 AND cg.date_depart IS NOT NULL
+                 AND cg.date_end IS NOT NULL
+                 AND NULLIF(LTRIM(RTRIM(ISNULL(cg.type_congeee, ''))), '') IS NOT NULL
+                 AND CAST(${dayDateExpr} AS DATE) BETWEEN CAST(cg.date_depart AS DATE) AND CAST(cg.date_end AS DATE)
+             )
+            THEN (
+              SELECT TOP 1 LTRIM(RTRIM(cg2.type_congeee))
+              FROM ${congeeTable} AS cg2
+              WHERE cg2.id_emp = jsi.id_emp
+                AND cg2.date_depart IS NOT NULL
+                AND cg2.date_end IS NOT NULL
+                AND NULLIF(LTRIM(RTRIM(ISNULL(cg2.type_congeee, ''))), '') IS NOT NULL
+                AND CAST(${dayDateExpr} AS DATE) BETWEEN CAST(cg2.date_depart AS DATE) AND CAST(cg2.date_end AS DATE)
+              ORDER BY cg2.date_creation DESC, cg2.int_con DESC
+            )
+            WHEN ${day} <= DAY(EOMONTH(${monthStartExpr}))
+             AND EXISTS (
+               SELECT 1
+               FROM [fgp].[dbo].[iclock_transaction] AS it
+               WHERE LTRIM(RTRIM((CAST(it.emp_code AS NVARCHAR(50)) COLLATE DATABASE_DEFAULT)))
+                     = LTRIM(RTRIM((ISNULL(emp.Ref_emp, '') COLLATE DATABASE_DEFAULT)))
+                 AND CAST(it.punch_time AS DATE) = ${dayDateExpr}
+             )
+            THEN 'P'
+            ELSE jsi.j_${day}
+          END AS j_${day}`;
+      }).join(',\n          ');
 
       const employeeFilterSql =
         employeeType === 'national'
@@ -330,7 +494,7 @@ exports.listTimesheets = async (req, res) => {
         ? "AND LTRIM(RTRIM(ISNULL(emp.attached_number, ''))) LIKE :attachedNumberPrefixLike"
         : '';
 
-      const sql = `
+      const buildSql = (dayColumns) => `
         SELECT
           jsi.id_tran,
           jsi.id_emp,
@@ -341,10 +505,7 @@ exports.listTimesheets = async (req, res) => {
           jsi.IS_OK,
           jsi.NATIONAL_NO,
           jsi.IN_CALL,
-          jsi.j_1, jsi.j_2, jsi.j_3, jsi.j_4, jsi.j_5, jsi.j_6, jsi.j_7, jsi.j_8, jsi.j_9, jsi.j_10,
-          jsi.j_11, jsi.j_12, jsi.j_13, jsi.j_14, jsi.j_15, jsi.j_16, jsi.j_17, jsi.j_18, jsi.j_19, jsi.j_20,
-          jsi.j_21, jsi.j_22, jsi.j_23, jsi.j_24, jsi.j_25, jsi.j_26, jsi.j_27, jsi.j_28, jsi.j_29, jsi.j_30,
-          jsi.j_31,
+          ${dayColumns},
           emp.COST_CENTER,
           cc.Branche AS COST_CENTER_CODE,
           emp.Ref_emp,
@@ -361,15 +522,27 @@ exports.listTimesheets = async (req, res) => {
         ORDER BY cc.Branche, emp.COST_CENTER, jsi.id_emp, jsi.id_tran
       `;
 
+      const sqlWithPunch = buildSql(dayColumnsSql);
+      const sqlWithoutPunch = buildSql(baseDayColumnsSql);
+
       const replacements = { month, year };
       if (attachedNumberPrefix) {
         replacements.attachedNumberPrefixLike = `${escapeLikePrefix(attachedNumberPrefix)}%`;
       }
 
-      const rows = await jsi.sequelize.query(sql, {
-        replacements,
-        type: QueryTypes.SELECT,
-      });
+      let rows;
+      try {
+        rows = await jsi.sequelize.query(sqlWithPunch, {
+          replacements,
+          type: QueryTypes.SELECT,
+        });
+      } catch (punchErr) {
+        console.warn('listTimesheets punch query failed, falling back to base timesheets query:', punchErr?.message || punchErr);
+        rows = await jsi.sequelize.query(sqlWithoutPunch, {
+          replacements,
+          type: QueryTypes.SELECT,
+        });
+      }
 
       return res.json(rows);
     } catch (dbErr) {

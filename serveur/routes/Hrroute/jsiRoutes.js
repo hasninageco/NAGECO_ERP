@@ -9,6 +9,7 @@ router.get("/getsum_pt", authenticateToken, controller.getsum_PT);
 router.get("/getsum_b", authenticateToken, controller.getsum_B);
 
 router.get("/timesheets", authenticateToken, controller.listTimesheets);
+router.post("/timesheets/sync-punches", authenticateToken, controller.syncTimesheetsFromPunches);
 router.post("/timesheets/bulk-update", authenticateToken, controller.bulkUpdateTimesheets);
 
 module.exports = router;
